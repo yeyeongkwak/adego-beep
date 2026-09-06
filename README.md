@@ -40,10 +40,10 @@ Same hash → skip. New hash → staging → swap → `gtfs_imports` row.
 
 ## Scripts
 
-| Command | Description |
-|---------|-------------|
-| `yarn dev` | Next dev server |
-| `yarn build` | Production build |
+| Command            | Description               |
+| ------------------ | ------------------------- |
+| `yarn dev`         | Next dev server           |
+| `yarn build`       | Production build          |
 | `yarn gtfs:update` | Import latest Static GTFS |
 
 ## Next steps
