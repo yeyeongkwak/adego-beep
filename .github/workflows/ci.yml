@@ -3,7 +3,7 @@ name: CI
 on:
     pull_request:
     push:
-        branches: [main, dev]
+        branches: [master, dev]
 
 jobs:
     ci_build_and_validate:
@@ -12,14 +12,13 @@ jobs:
             - name: Checkout the repository code
               uses: actions/checkout@v4
 
-            - name: Enable Corepack
-              run: corepack enable
-
             - name: Setup Node
               uses: actions/setup-node@v4
               with:
                   node-version: 24
-                  cache: yarn
+
+            - name: Enable Corepack
+              run: corepack enable
 
             - name: Create dummy .env
               run: |
@@ -34,7 +33,14 @@ jobs:
                   echo "DISCORD_WEBHOOK_URL_BUG=https://discord.com/api/webhooks/dummy/bug" >> .env
                   echo "DISCORD_WEBHOOK_URL_SUGGESTION=https://discord.com/api/webhooks/dummy/suggestion" >> .env
 
-            - run: yarn install --immutable
-            - run: yarn lint
-            - run: npx prettier --check .
-            - run: yarn build
+            - name: Install dependencies
+              run: yarn install --immutable
+
+            - name: Run lint check
+              run: yarn lint
+
+            - name: Run format check
+              run: yarn prettier --check .
+
+            - name: Build project
+              run: yarn build
