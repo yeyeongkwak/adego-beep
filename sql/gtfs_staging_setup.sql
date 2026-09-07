@@ -72,13 +72,13 @@ CREATE INDEX IF NOT EXISTS idx_gtfs_shapes_shape_id    ON public.gtfs_shapes (sh
 
 -- Staging tables mirror the above (no PK, so bulk insert never trips a constraint).
 -- update-gtfs.ts loads into these, then swap_gtfs_from_staging() cuts over atomically.
-CREATE TABLE IF NOT EXISTS public.gtfs_routes_staging          (LIKE public.gtfs_routes          INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_stops_staging           (LIKE public.gtfs_stops           INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_trips_staging           (LIKE public.gtfs_trips           INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_stop_times_staging      (LIKE public.gtfs_stop_times      INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_calendar_staging        (LIKE public.gtfs_calendar        INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_calendar_dates_staging  (LIKE public.gtfs_calendar_dates  INCLUDING DEFAULTS);
-CREATE TABLE IF NOT EXISTS public.gtfs_shapes_staging          (LIKE public.gtfs_shapes          INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_routes          (LIKE public.gtfs_routes          INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_stops           (LIKE public.gtfs_stops           INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_trips           (LIKE public.gtfs_trips           INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_stop_times      (LIKE public.gtfs_stop_times      INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_calendar        (LIKE public.gtfs_calendar        INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_calendar_dates  (LIKE public.gtfs_calendar_dates  INCLUDING DEFAULTS);
+CREATE TABLE IF NOT EXISTS public.gtfs_staging_shapes          (LIKE public.gtfs_shapes          INCLUDING DEFAULTS);
 
 CREATE TABLE IF NOT EXISTS public.gtfs_imports (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -112,13 +112,13 @@ RETURNS void
 LANGUAGE sql
 AS $$
   TRUNCATE
-    public.gtfs_stop_times_staging,
-    public.gtfs_trips_staging,
-    public.gtfs_shapes_staging,
-    public.gtfs_calendar_dates_staging,
-    public.gtfs_calendar_staging,
-    public.gtfs_stops_staging,
-    public.gtfs_routes_staging;
+    public.gtfs_staging_stop_times,
+    public.gtfs_staging_trips,
+    public.gtfs_staging_shapes,
+    public.gtfs_staging_calendar_dates,
+    public.gtfs_staging_calendar,
+    public.gtfs_staging_stops,
+    public.gtfs_staging_routes;
 $$;
 
 CREATE OR REPLACE FUNCTION public.swap_gtfs_from_staging()
@@ -136,12 +136,12 @@ BEGIN
     public.gtfs_routes
   CASCADE;
 
-  INSERT INTO public.gtfs_routes          SELECT * FROM public.gtfs_routes_staging;
-  INSERT INTO public.gtfs_stops           SELECT * FROM public.gtfs_stops_staging;
-  INSERT INTO public.gtfs_calendar        SELECT * FROM public.gtfs_calendar_staging;
-  INSERT INTO public.gtfs_calendar_dates  SELECT * FROM public.gtfs_calendar_dates_staging;
-  INSERT INTO public.gtfs_trips           SELECT * FROM public.gtfs_trips_staging;
-  INSERT INTO public.gtfs_stop_times      SELECT * FROM public.gtfs_stop_times_staging;
-  INSERT INTO public.gtfs_shapes          SELECT * FROM public.gtfs_shapes_staging;
+  INSERT INTO public.gtfs_routes          SELECT * FROM public.gtfs_staging_routes;
+  INSERT INTO public.gtfs_stops           SELECT * FROM public.gtfs_staging_stops;
+  INSERT INTO public.gtfs_calendar        SELECT * FROM public.gtfs_staging_calendar;
+  INSERT INTO public.gtfs_calendar_dates  SELECT * FROM public.gtfs_staging_calendar_dates;
+  INSERT INTO public.gtfs_trips           SELECT * FROM public.gtfs_staging_trips;
+  INSERT INTO public.gtfs_stop_times      SELECT * FROM public.gtfs_staging_stop_times;
+  INSERT INTO public.gtfs_shapes          SELECT * FROM public.gtfs_staging_shapes;
 END;
 $$;
