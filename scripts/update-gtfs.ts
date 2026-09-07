@@ -82,6 +82,7 @@ async function main() {
         .from('gtfs_imports')
         .select('id')
         .eq('file_hash', hash)
+        .eq('status', 'success')
         .maybeSingle()
 
     if (existingError) throw existingError
