@@ -258,7 +258,12 @@ async function main() {
 
         console.log('[gtfs] done', rowCounts)
     } catch (e) {
-        const message = e instanceof Error ? e.message : String(e)
+        const message =
+            e instanceof Error
+                ? e.message
+                : typeof e === 'object' && e !== null && 'message' in e
+                  ? String((e as { message: unknown }).message)
+                  : String(e)
         await supabase
             .from('gtfs_imports')
             .update({ status: 'failed', error_message: message })
