@@ -292,6 +292,9 @@ async function main() {
 }
 
 main().catch((e) => {
-    console.error('[gtfs] unhandled failure:', e instanceof Error ? e.message : e)
+    console.error(
+        '[gtfs] unhandled failure:',
+        e instanceof Error ? e.message : e
+    )
     process.exitCode = 1
 })
