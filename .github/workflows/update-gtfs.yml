@@ -1,0 +1,77 @@
+name: Update GTFS
+
+on:
+    schedule:
+        - cron: '30 17 * * 0' # 2-3am (Adelaide Timezone)
+    workflow_dispatch:
+
+jobs:
+    update_gtfs:
+        runs-on: ubuntu-latest
+        environment: Production
+        steps:
+            - name: Checkout the repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '20'
+
+            - name: Enable Corepack
+              run: corepack enable
+
+            - name: Install dependencies
+              run: yarn install --immutable
+
+            - name: Send Discord notification on Build Failure
+              if: failure()
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_BUILD_WEBHOOK }} \
+                      -H 'Content-Type: application/json' \
+                      -d '{
+                        "content": "🔧 Build Failed",
+                        "embeds": [{
+                          "title": "Adelaide Metro GTFS Update — Build",
+                          "description": "Checkout, Node/Corepack setup, or yarn install failed before the GTFS update could run.",
+                          "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                          "color": 16711680
+                        }]
+                      }'
+
+            - name: Run GTFS update
+              id: gtfs_update
+              run: yarn gtfs:update
+              env:
+                  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+
+            - name: Send Discord notification on failure
+              if: failure() && steps.gtfs_update.outcome == 'failure'
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_SCRIPT_WEBHOOK }} \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                      "content": "❌ GTFS Update Failed",
+                      "embeds": [{
+                        "title": "Adelaide Metro GTFS Update",
+                        "description": "The scheduled GTFS update failed. Please check the logs.",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                        "color": 16711680
+                      }]
+                    }'
+
+            - name: Send Discord notification on success
+              if: success()
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_SCRIPT_WEBHOOK }} \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                      "content": "✅ GTFS Update Successful",
+                      "embeds": [{
+                        "title": "Adelaide Metro GTFS Update",
+                        "description": "The scheduled GTFS update completed successfully.",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                        "color": 3066993
+                      }]
+                    }'
