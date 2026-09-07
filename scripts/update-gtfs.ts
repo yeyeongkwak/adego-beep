@@ -93,7 +93,10 @@ async function main() {
 
     const { data: importRow, error: insertError } = await supabase
         .from('gtfs_imports')
-        .insert({ file_hash: hash, status: 'loading' })
+        .upsert(
+            { file_hash: hash, status: 'loading', error_message: null },
+            { onConflict: 'file_hash' }
+        )
         .select('id')
         .single()
 
@@ -288,4 +291,7 @@ async function main() {
     }
 }
 
-main()
+main().catch((e) => {
+    console.error('[gtfs] unhandled failure:', e instanceof Error ? e.message : e)
+    process.exitCode = 1
+})
