@@ -12,13 +12,13 @@ jobs:
             - name: Checkout the repository code
               uses: actions/checkout@v5
 
+            - name: Enable Corepack
+              run: corepack enable
+
             - name: Setup Node
               uses: actions/setup-node@v5
               with:
                   node-version: 24
-
-            - name: Enable Corepack
-              run: corepack enable
 
             - name: Create dummy .env
               run: |
