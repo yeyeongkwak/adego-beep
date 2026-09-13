@@ -2,6 +2,7 @@ import { createHash } from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import AdmZip from 'adm-zip'
 import { parse } from 'csv-parse/sync'
+import { Client } from 'pg'
 import { bulkInsert } from '@/util'
 
 const GTFS_URL =
@@ -230,10 +231,19 @@ async function main() {
         }
 
         console.log('[gtfs] swap to production…')
-        const { error: swapError } = await supabase.rpc(
-            'swap_gtfs_from_staging'
-        )
-        if (swapError) throw swapError
+        const dbUrl = process.env.SUPABASE_DB_URL
+        if (!dbUrl)
+            throw new Error(
+                'Set SUPABASE_DB_URL (direct Postgres connection string)'
+            )
+        const pgClient = new Client({ connectionString: dbUrl })
+        pgClient.on('notice', (msg) => console.log('[swap]', msg.message))
+        await pgClient.connect()
+        try {
+            await pgClient.query('SELECT public.swap_gtfs_from_staging()')
+        } finally {
+            await pgClient.end()
+        }
 
         await supabase
             .from('gtfs_imports')

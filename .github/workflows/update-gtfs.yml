@@ -45,6 +45,7 @@ jobs:
               env:
                   NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
                   SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+                  SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 
             - name: Send Discord notification on failure
               if: failure() && steps.gtfs_update.outcome == 'failure'

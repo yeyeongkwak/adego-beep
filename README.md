@@ -28,6 +28,9 @@ yarn dev
 ## GTFS update (local first)
 
 1. Run the files in `sql/migrations/` in order in Supabase SQL editor (existing `gtfs_*` tables required).
+    - `swap_gtfs_from_staging()` runs for minutes and can't go through the Data API's request timeout, so
+      `update-gtfs.ts` calls it over a direct Postgres connection — set `SUPABASE_DB_URL` (Dashboard →
+      Project Settings → Database → Connection string) alongside the other env vars.
 2. Set env vars in `.env.local`.
 3. Run:
 
