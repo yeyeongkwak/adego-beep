@@ -1,6 +1,4 @@
 import { createHash } from 'crypto'
-import { readFileSync, existsSync } from 'fs'
-import { resolve } from 'path'
 import { createClient } from '@supabase/supabase-js'
 import AdmZip from 'adm-zip'
 import { parse } from 'csv-parse/sync'
@@ -193,6 +191,7 @@ async function main() {
                     ? Number(row.direction_id)
                     : null,
             shape_id: emptyToNull(row.shape_id),
+            block_id: emptyToNull(row.block_id),
         }))
         await bulkInsert(supabase, 'gtfs_staging_trips', trips)
 

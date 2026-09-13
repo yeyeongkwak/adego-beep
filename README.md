@@ -27,7 +27,7 @@ yarn dev
 
 ## GTFS update (local first)
 
-1. Run `sql/gtfs_staging_setup.sql` in Supabase SQL editor (existing `gtfs_*` tables required).
+1. Run the files in `sql/migrations/` in order in Supabase SQL editor (existing `gtfs_*` tables required).
 2. Set env vars in `.env.local`.
 3. Run:
 
