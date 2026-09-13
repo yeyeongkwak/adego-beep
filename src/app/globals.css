@@ -3,11 +3,19 @@
 :root {
     --background: #ffffff;
     --foreground: #171717;
+
+    /* Adelaide theme */
+    --primary: #002b5c; /* navy */
+    --accent: #fdb913; /* gold */
+    --alert: #e21937; /* red */
 }
 
 @theme inline {
     --color-background: var(--background);
     --color-foreground: var(--foreground);
+    --color-primary: var(--primary);
+    --color-accent: var(--accent);
+    --color-alert: var(--alert);
     --font-sans: var(--font-geist-sans);
     --font-mono: var(--font-geist-mono);
 }

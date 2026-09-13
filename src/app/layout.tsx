@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import { Providers } from './providers'
+import { Analytics } from '@vercel/analytics/next'
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -13,8 +15,18 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-    title: 'Adego Beep',
-    description: 'More accurate bus guidance in Adelaide',
+    title: {
+        default: 'Adelaide Go Beep',
+        template: '%s | Adelaide Go Beep',
+    },
+    description:
+        'Accurate real-time bus arrivals for Adelaide public transport',
+    applicationName: 'Adego Beep',
+    appleWebApp: {
+        capable: true,
+        title: 'Adego Beep',
+        statusBarStyle: 'default',
+    },
 }
 
 export default function RootLayout({
@@ -27,7 +39,14 @@ export default function RootLayout({
             <body
                 className={`${geistSans.variable} ${geistMono.variable} antialiased`}
             >
-                {children}
+                <Providers>
+                    <div className="min-h-dvh bg-gray-200">
+                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 shadow-xl">
+                            {children}
+                        </div>
+                    </div>
+                </Providers>
+                <Analytics />
             </body>
         </html>
     )
