@@ -11,12 +11,12 @@ export function HomeMap({
     center: { lat: number; lng: number }
     userLocation: { lat: number; lng: number } | null
 }) {
+    const { stops, loading } = useNearbyStops(center, 600)
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey)
         return <div className="h-full w-full bg-zinc-100 dark:bg-zinc-900" />
 
     console.log(center)
-    const { stops, loading } = useNearbyStops(center, 600)
     return (
         <APIProvider apiKey={apiKey}>
             <Map
