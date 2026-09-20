@@ -47,30 +47,30 @@ jobs:
 
             - name: Send Discord notification on success
               if: success() && github.event_name == 'push'
+              env:
+                  WEBHOOK: ${{ secrets.DISCORD_BUILD_WEBHOOK }}
+                  COMMIT_MSG: ${{ github.event.head_commit.message }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  REF_NAME: ${{ github.ref_name }}
               run: |
-                  curl -X POST ${{ secrets.DISCORD_BUILD_WEBHOOK }} \
-                    -H 'Content-Type: application/json' \
-                    -d '{
-                      "content": "✅ CI Passed",
-                      "embeds": [{
-                        "title": "Adelaide Go Beep — CI",
-                        "description": "Lint, format, and build succeeded on `${{ github.ref_name }}` (commit `${{ github.sha }}`).",
-                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                        "color": 3066993
-                      }]
-                    }'
+                  jq -n \
+                    --arg desc "Lint, format, and build succeeded on \`$REF_NAME\`." \
+                    --arg msg "$COMMIT_MSG" \
+                    --arg url "$RUN_URL" \
+                    '{content: "✅ CI Passed", embeds: [{title: "Adelaide Go Beep — CI", description: ($desc + "\n\n" + $msg), url: $url, color: 3066993}]}' \
+                    | curl -sf -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK"
 
             - name: Send Discord notification on failure
               if: failure() && github.event_name == 'push'
+              env:
+                  WEBHOOK: ${{ secrets.DISCORD_BUILD_WEBHOOK }}
+                  COMMIT_MSG: ${{ github.event.head_commit.message }}
+                  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+                  REF_NAME: ${{ github.ref_name }}
               run: |
-                  curl -X POST ${{ secrets.DISCORD_BUILD_WEBHOOK }} \
-                    -H 'Content-Type: application/json' \
-                    -d '{
-                      "content": "❌ CI Failed",
-                      "embeds": [{
-                        "title": "Adelaide Go Beep — CI",
-                        "description": "CI failed on `${{ github.ref_name }}` (commit `${{ github.sha }}`). Please check the logs.",
-                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
-                        "color": 16711680
-                      }]
-                    }'
+                  jq -n \
+                    --arg desc "CI failed on \`$REF_NAME\`. Please check the logs." \
+                    --arg msg "$COMMIT_MSG" \
+                    --arg url "$RUN_URL" \
+                    '{content: "❌ CI Failed", embeds: [{title: "Adelaide Go Beep — CI", description: ($desc + "\n\n" + $msg), url: $url, color: 16711680}]}' \
+                    | curl -sf -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK"
