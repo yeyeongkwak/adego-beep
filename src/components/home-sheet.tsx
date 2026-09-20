@@ -42,12 +42,36 @@ const STOP_MODE_STYLE: Record<
 // Mock data — placeholder until auth-backed favourites/history replace these.
 // Nearby now comes from a real GTFS proximity query, passed in as a prop.
 const FAVOURITE_STOPS: Stop[] = [
-    { id: 'fav-1', name: 'King William St', code: 'KWS001', lat: -34.9285, lng: 138.6007 },
-    { id: 'fav-2', name: 'University of Adelaide', code: 'UNIV01', lat: -34.9205, lng: 138.6045 },
+    {
+        id: 'fav-1',
+        name: 'King William St',
+        code: 'KWS001',
+        lat: -34.9285,
+        lng: 138.6007,
+    },
+    {
+        id: 'fav-2',
+        name: 'University of Adelaide',
+        code: 'UNIV01',
+        lat: -34.9205,
+        lng: 138.6045,
+    },
 ]
 const RECENT_STOPS: Stop[] = [
-    { id: 'rec-1', name: 'Henley Beach', code: 'HEN01', lat: -34.9161, lng: 138.4964 },
-    { id: 'rec-2', name: 'Glenelg', code: 'GLE01', lat: -34.9805, lng: 138.5156 },
+    {
+        id: 'rec-1',
+        name: 'Henley Beach',
+        code: 'HEN01',
+        lat: -34.9161,
+        lng: 138.4964,
+    },
+    {
+        id: 'rec-2',
+        name: 'Glenelg',
+        code: 'GLE01',
+        lat: -34.9805,
+        lng: 138.5156,
+    },
 ]
 
 function StopRow({ name, code, distanceM, mode }: Stop) {
