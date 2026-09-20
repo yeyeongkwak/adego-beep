@@ -7,7 +7,9 @@
         "build": "next build",
         "start": "next start",
         "lint": "eslint",
-        "gtfs:update": "tsx scripts/update-gtfs.ts"
+        "gtfs:update": "tsx scripts/update-gtfs.ts",
+        "ci:verify": "yarn lint && yarn prettier --check . && yarn build",
+        "postinstall": "simple-git-hooks"
     },
     "dependencies": {
         "@supabase/ssr": "^0.10.3",
@@ -49,9 +51,14 @@
     },
     "packageManager": "yarn@4.9.2",
     "simple-git-hooks": {
-        "pre-commit": "npx lint-staged"
+        "pre-commit": "yarn lint-staged",
+        "pre-push": "yarn ci:verify"
     },
     "lint-staged": {
-        "*.{js,jsx,ts,tsx}": "eslint --fix"
+        "*.{js,jsx,ts,tsx}": [
+            "eslint --fix",
+            "prettier --write"
+        ],
+        "*.{json,css,md,yml,yaml}": "prettier --write"
     }
 }
