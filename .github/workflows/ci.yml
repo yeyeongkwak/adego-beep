@@ -44,3 +44,33 @@ jobs:
 
             - name: Build project
               run: yarn build
+
+            - name: Send Discord notification on success
+              if: success() && github.event_name == 'push'
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_BUILD_WEBHOOK }} \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                      "content": "✅ CI Passed",
+                      "embeds": [{
+                        "title": "Adelaide Go Beep — CI",
+                        "description": "Lint, format, and build succeeded on `${{ github.ref_name }}` (commit `${{ github.sha }}`).",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                        "color": 3066993
+                      }]
+                    }'
+
+            - name: Send Discord notification on failure
+              if: failure() && github.event_name == 'push'
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_BUILD_WEBHOOK }} \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                      "content": "❌ CI Failed",
+                      "embeds": [{
+                        "title": "Adelaide Go Beep — CI",
+                        "description": "CI failed on `${{ github.ref_name }}` (commit `${{ github.sha }}`). Please check the logs.",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                        "color": 16711680
+                      }]
+                    }'
