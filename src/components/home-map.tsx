@@ -1,22 +1,22 @@
 'use client'
 
 import { APIProvider, Map, Marker } from '@vis.gl/react-google-maps'
-import { useNearbyStops } from '@/hooks/useNearbyStops'
+import type { NearbyStop } from '@/types/common'
 import { STOP_ICON_URL } from '@/util/map/stopIcons'
 
 export function HomeMap({
     center,
     userLocation,
+    nearbyStops,
 }: {
     center: { lat: number; lng: number }
     userLocation: { lat: number; lng: number } | null
+    nearbyStops: NearbyStop[]
 }) {
-    const { stops, loading } = useNearbyStops(center, 600)
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     if (!apiKey)
         return <div className="h-full w-full bg-zinc-100 dark:bg-zinc-900" />
 
-    console.log(center)
     return (
         <APIProvider apiKey={apiKey}>
             <Map
@@ -41,7 +41,7 @@ export function HomeMap({
                         }}
                     />
                 )}
-                {stops.map((stop) => (
+                {nearbyStops.map((stop) => (
                     <Marker
                         key={stop.id}
                         position={{ lat: stop.lat, lng: stop.lng }}

@@ -5,7 +5,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import type { NearbyStop } from '@/types/common'
 
 export const useNearbyStops = (
-    center: { lat: number; lng: number },
+    center: { lat: number; lng: number } | null,
     radius = 600
 ) => {
     const lat = center ? Math.round(center.lat * 10000) / 10000 : null

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { HomeMap } from '@/components/home-map'
-import { HomeSheet, type Stop } from '@/components/home-sheet'
+import { HomeSheet } from '@/components/home-sheet'
+import { useNearbyStops } from '@/hooks/useNearbyStops'
 
 // Adelaide CBD — fallback center when location is denied/unavailable.
 const ADELAIDE_CENTER = { lat: -34.9285, lng: 138.6007 }
@@ -19,7 +20,7 @@ export function HomeScreen() {
         lng: number
     } | null>(null)
 
-    const [nearbyStops, setNearbyStops] = useState<Stop[]>([])
+    const { stops: nearbyStops } = useNearbyStops(center, 600)
 
     const [locationDenied, setLocationDenied] = useState(false)
 
@@ -59,6 +60,7 @@ export function HomeScreen() {
                     key={userLocation ? 'gps' : 'fallback'}
                     center={center}
                     userLocation={userLocation}
+                    nearbyStops={nearbyStops}
                 />
             ) : (
                 <div className="h-full w-full bg-zinc-100 dark:bg-zinc-900" />
