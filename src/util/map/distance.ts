@@ -15,3 +15,7 @@ export function distanceMeters(
     const c = 2 * Math.asin(Math.sqrt(a))
     return EARTH_RADIUS_M * c
 }
+
+export function formatDistance(metres: number): string {
+    return metres < 1000 ? `${metres}m` : `${(metres / 1000).toFixed(1)}km`
+}

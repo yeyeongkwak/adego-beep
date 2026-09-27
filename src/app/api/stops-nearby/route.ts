@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
 import { distanceMeters } from '@/lib/utils'
-import type { Stop, StopMode } from '@/components/home-sheet'
+import type { Stop, StopMode } from '@/types/common'
 
 // GTFS route_type -> our stop icon/color grouping.
 const ROUTE_TYPE_MODE: Record<number, StopMode> = {
@@ -11,21 +11,28 @@ const ROUTE_TYPE_MODE: Record<number, StopMode> = {
     3: 'BUS',
 }
 
-// ponytail: lat/lng bounding box, not a true radius — fine for "nearby" at
-// city-block scale, no PostGIS/spatial index to size a real radius query.
-const NEARBY_BOX_DEG = 0.02 // ~2.2km
+// Bounding-box query over the map's visible rectangle. No PostGIS/spatial
+// index, but .gte/.lte on lat/lon is plenty for city-block scale.
 const NEARBY_LIMIT = 20
 
 export async function GET(request: NextRequest) {
-    const lat = Number(request.nextUrl.searchParams.get('lat'))
-    const lng = Number(request.nextUrl.searchParams.get('lng'))
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    const north = Number(request.nextUrl.searchParams.get('north'))
+    const south = Number(request.nextUrl.searchParams.get('south'))
+    const east = Number(request.nextUrl.searchParams.get('east'))
+    const west = Number(request.nextUrl.searchParams.get('west'))
+    if (
+        !Number.isFinite(north) ||
+        !Number.isFinite(south) ||
+        !Number.isFinite(east) ||
+        !Number.isFinite(west)
+    ) {
         return NextResponse.json(
-            { error: 'lat and lng are required' },
+            { error: 'north, south, east and west are required' },
             { status: 400 }
         )
     }
-    const center = { lat, lng }
+    // Distances are reported relative to the view centre.
+    const center = { lat: (north + south) / 2, lng: (east + west) / 2 }
 
     const supabase = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,10 +41,10 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
         .from('gtfs_stops')
         .select('stop_id, stop_code, stop_name, stop_lat, stop_lon, route_type')
-        .gte('stop_lat', center.lat - NEARBY_BOX_DEG)
-        .lte('stop_lat', center.lat + NEARBY_BOX_DEG)
-        .gte('stop_lon', center.lng - NEARBY_BOX_DEG)
-        .lte('stop_lon', center.lng + NEARBY_BOX_DEG)
+        .gte('stop_lat', south)
+        .lte('stop_lat', north)
+        .gte('stop_lon', west)
+        .lte('stop_lon', east)
     if (error || !data) {
         return NextResponse.json({ error: error?.message }, { status: 500 })
     }
