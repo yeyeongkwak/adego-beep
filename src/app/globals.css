@@ -32,3 +32,92 @@ body {
     color: var(--foreground);
     font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Map tile skeleton: faint street grid + light sweep, shown while Google Maps tiles load.
+   Positioning is left to utility classes (`relative` or `absolute`) so this rule
+   does not override them — it only paints the grid, sweep, and clipping. */
+.map-skeleton {
+    overflow: hidden;
+    background:
+        repeating-linear-gradient(
+            0deg,
+            rgba(100, 116, 139, 0.22) 0 1px,
+            transparent 1px 32px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            rgba(100, 116, 139, 0.22) 0 1px,
+            transparent 1px 32px
+        ),
+        linear-gradient(135deg, #eef2f5 0%, #e3e9ee 50%, #d8e0e7 100%);
+}
+
+.map-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.6),
+        transparent
+    );
+    animation: map-skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes map-skeleton-shimmer {
+    to {
+        transform: translateX(100%);
+    }
+}
+
+@media (prefers-color-scheme: dark) {
+    .map-skeleton {
+        background:
+            repeating-linear-gradient(
+                0deg,
+                rgba(148, 163, 184, 0.15) 0 1px,
+                transparent 1px 32px
+            ),
+            repeating-linear-gradient(
+                90deg,
+                rgba(148, 163, 184, 0.15) 0 1px,
+                transparent 1px 32px
+            ),
+            linear-gradient(135deg, #1f2937 0%, #172033 50%, #11182a 100%);
+    }
+
+    .map-skeleton::after {
+        background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.08),
+            transparent
+        );
+    }
+}
+
+@utility scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+
+    &::-webkit-scrollbar {
+        display: none; /* Chrome, Safari, Opera */
+    }
+}
+
+/* Gentle upward nudge for the "pull up for more" chevron — hints the drag
+   direction without being distracting. */
+@keyframes nudge-up {
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+.animate-nudge-up {
+    animation: nudge-up 1.4s ease-in-out infinite;
+}

@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { StatusPage } from '../../_status/status-page'
-import { HomeScreen } from '@/components/home-screen'
+import { HomeScreen } from '@/components/page/home/home-screen'
 
 // If the pipeline dies mid-run, `status` can get stuck on 'updating'
 // forever (only the success/fail paths clear it). Ignore anything older
