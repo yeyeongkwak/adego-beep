@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Stop } from '@/types/common'
 import { StopList, StopArrivalsPanel } from '@/components/ui/home'
-import { FavouritesList } from '@/components/ui/common'
 
 const RECENT_STOPS: Stop[] = [
     {
@@ -155,7 +154,7 @@ export function HomeSheet({
                                     />
                                 </TabsContent>
                                 <TabsContent value="favourites">
-                                    <FavouritesList />
+                                    {/* <FavouritesList /> */}
                                 </TabsContent>
                                 <TabsContent value="recent">
                                     <StopList
