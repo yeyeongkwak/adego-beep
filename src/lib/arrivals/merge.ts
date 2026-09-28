@@ -95,10 +95,11 @@ export async function mergeArrivals(
         route_id: string
         route_short_name: string | null
         route_long_name: string | null
+        route_color: string | null
     }>(db, routeIds, (d, chunk) =>
         d
             .from('gtfs_routes')
-            .select('route_id, route_short_name, route_long_name')
+            .select('route_id, route_short_name, route_long_name, route_color')
             .in('route_id', chunk)
     )
     const routeById = new Map(routes.map((r) => [r.route_id, r]))
@@ -107,6 +108,8 @@ export async function mergeArrivals(
         const trip = tripById.get(m.tripId)
         const routeId = m.routeId ?? trip?.route_id ?? null
         const route = routeId ? routeById.get(routeId) : null
+        const rawColor = route?.route_color?.trim()
+        const color = rawColor ? `#${rawColor}` : null
         return {
             route:
                 route?.route_short_name ??
@@ -118,6 +121,7 @@ export async function mergeArrivals(
             live: m.live,
             tripId: m.tripId,
             stopSequence: m.stopSequence,
+            color,
         }
     })
 }

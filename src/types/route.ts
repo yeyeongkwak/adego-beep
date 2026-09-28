@@ -36,6 +36,7 @@ export type StopArrival = {
     live: boolean
     tripId: string
     stopSequence: number | null
+    color: string | null
 }
 
 export type MergedRow = {
