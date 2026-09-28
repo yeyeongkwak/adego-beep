@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { HomeMap } from '@/components/page/home/home-map'
 import {
     HomeSheet,
-    MAX_SNAP_POINT,
     PREVIEW_SNAP_POINT,
 } from '@/components/page/home/home-sheet'
 import { useNearbyStops } from '@/hooks/useNearbyStops'
@@ -30,6 +29,13 @@ export function HomeScreen() {
     const { stops: nearbyStops } = useNearbyStops(searchBounds)
 
     const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
+
+    const handleSelectStop = (stop: Stop | null) => {
+        setSelectedStop(stop)
+        setSnapPoint((current) =>
+            current === 0 ? PREVIEW_SNAP_POINT : current
+        )
+    }
 
     const [locationDenied, setLocationDenied] = useState(false)
 
@@ -73,11 +79,11 @@ export function HomeScreen() {
                     userLocation={userLocation}
                     nearbyStops={nearbyStops}
                     selectedStop={selectedStop}
-                    onSelectStop={(stop) => {
-                        setSelectedStop(stop)
-                        setSnapPoint(MAX_SNAP_POINT)
-                    }}
+                    onSelectStop={handleSelectStop}
                     onBoundsChange={setSearchBounds}
+                    sheetFraction={
+                        typeof snapPoint === 'number' ? snapPoint : 0
+                    }
                 />
             ) : (
                 <div className="map-skeleton relative h-full w-full" />
@@ -109,11 +115,7 @@ export function HomeScreen() {
                 onSnapPointChange={setSnapPoint}
                 nearbyStops={nearbyStops}
                 selectedStop={selectedStop}
-                onSelectStop={(stop) => {
-                    setSelectedStop(stop)
-                    setSnapPoint(PREVIEW_SNAP_POINT)
-                    // setSnapPoint(stop ? MAX_SNAP_POINT : PREVIEW_SNAP_POINT)
-                }}
+                onSelectStop={handleSelectStop}
             />
 
             {collapsed && (

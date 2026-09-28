@@ -7,14 +7,40 @@ import {
     Map,
     useMap,
 } from '@vis.gl/react-google-maps'
+import { LocateFixed } from 'lucide-react'
 import type { MapBounds, NearbyStop } from '@/types/common'
 import { STOP_ICON_URL } from '@/util/map/stopIcons'
 
 const IDLE_DEBOUNCE_MS = 600
 
-// Handles two map behaviours that need the live map instance (so it lives
-// inside <Map>): panning to a selected stop, and reporting the visible bounds
-// after the user moves the map so the parent can re-search that exact area.
+function RecenterButton({
+    userLocation,
+    sheetFraction,
+}: {
+    userLocation: { lat: number; lng: number } | null
+    sheetFraction: number
+}) {
+    const map = useMap()
+    if (!map || !userLocation) return null
+    return (
+        <button
+            type="button"
+            aria-label="Center on my location"
+            onClick={() => {
+                const zoom = map.getZoom() ?? 0
+                if (zoom < 16) map.setZoom(16)
+                map.panTo(userLocation)
+            }}
+            // Sit 12px above the sheet's top edge; falls back near the bottom
+            // when the sheet is collapsed.
+            style={{ bottom: `calc(${sheetFraction * 100}% + 12px)` }}
+            className="absolute right-4 z-10 flex size-11 items-center justify-center rounded-full bg-white text-primary shadow-lg transition-[bottom] duration-300 active:scale-95 dark:bg-zinc-800 dark:text-zinc-100"
+        >
+            <LocateFixed className="size-5" />
+        </button>
+    )
+}
+
 function MapController({
     selectedStop,
     onBoundsChange,
@@ -81,6 +107,7 @@ export function HomeMap({
     selectedStop,
     onSelectStop,
     onBoundsChange,
+    sheetFraction,
 }: {
     center: { lat: number; lng: number }
     userLocation: { lat: number; lng: number } | null
@@ -88,6 +115,7 @@ export function HomeMap({
     selectedStop: { id: string; lat: number; lng: number } | null
     onSelectStop: (stop: NearbyStop) => void
     onBoundsChange: (bounds: MapBounds) => void
+    sheetFraction: number
 }) {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 
@@ -166,6 +194,10 @@ export function HomeMap({
                                 </AdvancedMarker>
                             )
                         })}
+                    <RecenterButton
+                        userLocation={userLocation}
+                        sheetFraction={sheetFraction}
+                    />
                 </Map>
 
                 <div
