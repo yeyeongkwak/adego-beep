@@ -20,6 +20,20 @@ export type Stop = {
     mode?: StopMode
 }
 
+export type FavouriteType = 'stop' | 'place'
+export type Favourite = {
+    placeType: FavouriteType
+    placeId: string
+    label: string
+    lat: number
+    lng: number
+    mode?: StopMode // present for stops, used for the list icon
+}
+
+export type Recent = Favourite & {
+    visitedAt: number
+}
+
 export type NearbyStop = {
     id: string // gtfs stop_id
     code: string | null // stop_code ('18713')
