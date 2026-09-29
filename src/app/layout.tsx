@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
 import { Analytics } from '@vercel/analytics/next'
-import { NavigationFooter } from '@/components/navigation-footer'
+import { NavigationFooter } from '@/components/ui/navigation-footer'
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
