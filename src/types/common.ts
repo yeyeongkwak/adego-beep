@@ -81,3 +81,5 @@ export const STOP_MODE_STYLE: Record<
     },
     RAIL: { icon: TrainFront, iconClass: 'text-alert', bgClass: 'bg-alert/10' },
 }
+
+export type Coords = { lat: number; lng: number }
