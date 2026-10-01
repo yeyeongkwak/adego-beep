@@ -49,10 +49,12 @@ export async function mergeArrivals(
             routeId: null,
             stopSequence: call.stopSequence,
             arrivalEpoch: call.arrivalEpoch,
+            scheduledEpoch: call.arrivalEpoch,
             live: false,
         })
     }
 
+    // Overwrite the scheduled time with the live prediction when available.
     for (const update of live) {
         const existing = byTrip.get(update.tripId)
         byTrip.set(update.tripId, {
@@ -60,6 +62,8 @@ export async function mergeArrivals(
             routeId: update.routeId ?? existing?.routeId ?? null,
             stopSequence: update.stopSequence ?? existing?.stopSequence ?? null,
             arrivalEpoch: update.arrivalEpoch,
+            // Keep the timetable time so the delay can be derived.
+            scheduledEpoch: existing?.scheduledEpoch ?? null,
             live: true,
         })
     }
@@ -122,6 +126,12 @@ export async function mergeArrivals(
             tripId: m.tripId,
             stopSequence: m.stopSequence,
             color,
+            arrivalEpoch: m.arrivalEpoch,
+            scheduledEpoch: m.scheduledEpoch,
+            delayMin:
+                m.live && m.scheduledEpoch != null
+                    ? Math.round((m.arrivalEpoch - m.scheduledEpoch) / 60)
+                    : null,
         }
     })
 }

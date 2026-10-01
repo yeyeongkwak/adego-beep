@@ -3,6 +3,8 @@ import type {
     FeedSnapshot,
     LiveArrival,
     StopArrivalUpdate,
+    VehiclePosition,
+    VehicleSnapshot,
 } from '@/types/route'
 
 // Adelaide Metro GTFS-R TripUpdates: a ~240KB full snapshot the agency refreshes
@@ -116,4 +118,90 @@ export async function getLiveArrivals(
         }))
 
     return { arrivals, feedTimestamp: snapshot.feedTimestamp }
+}
+
+// --- VehiclePositions ------------------------------------------------------
+/* Live vehicle locations, indexed by tripId. Same fetch/cache pattern as
+ TripUpdates. A vehicle reports the trip it's currently running; to follow it
+ across a bus-number change mid-journey, the caller resolves the block chain
+ (see the directions route) and looks up each trip in that block here.
+*/
+
+const VEHICLE_FEED_URL =
+    process.env.GTFS_RT_VEHICLE_POSITIONS_URL ??
+    'https://gtfs.adelaidemetro.com.au/v1/realtime/vehicle_positions'
+
+const VEHICLE_TTL_MS = 20_000
+
+let vehicleCache: VehicleSnapshot | null = null
+let vehicleInFlight: Promise<VehicleSnapshot> | null = null
+
+async function loadVehicleFeed(): Promise<VehicleSnapshot> {
+    const res = await fetch(VEHICLE_FEED_URL, { cache: 'no-store' })
+    if (!res.ok)
+        throw new Error(`VehiclePositions feed responded ${res.status}`)
+
+    const feed = GtfsRealtimeBindings.transit_realtime.FeedMessage.decode(
+        new Uint8Array(await res.arrayBuffer())
+    )
+
+    const byTripId = new Map<string, VehiclePosition>()
+    for (const entity of feed.entity) {
+        const v = entity.vehicle
+        const tripId = v?.trip?.tripId
+        const lat = v?.position?.latitude
+        const lng = v?.position?.longitude
+        if (!v || !tripId || lat == null || lng == null) continue
+        byTripId.set(tripId, {
+            tripId,
+            routeId: v.trip?.routeId ?? null,
+            lat,
+            lng,
+            currentStopSequence: v.currentStopSequence ?? null,
+            stopId: v.stopId ?? null,
+        })
+    }
+
+    return {
+        fetchedAt: Date.now(),
+        feedTimestamp: toNumber(feed.header?.timestamp),
+        byTripId,
+    }
+}
+
+export async function getVehicleSnapshot(): Promise<VehicleSnapshot> {
+    if (vehicleCache && Date.now() - vehicleCache.fetchedAt < VEHICLE_TTL_MS)
+        return vehicleCache
+    if (vehicleInFlight) return vehicleInFlight
+    vehicleInFlight = loadVehicleFeed()
+        .then((snapshot) => {
+            vehicleCache = snapshot
+            return snapshot
+        })
+        .catch((error) => {
+            if (vehicleCache) return vehicleCache
+            throw error
+        })
+        .finally(() => {
+            vehicleInFlight = null
+        })
+    return vehicleInFlight
+}
+
+// First live vehicle found among the given trips (the block chain). Best-effort:
+// returns null if the feed is unavailable or none are currently tracked.
+export async function findVehicleForTrips(
+    tripIds: string[]
+): Promise<VehiclePosition | null> {
+    let snapshot: VehicleSnapshot
+    try {
+        snapshot = await getVehicleSnapshot()
+    } catch {
+        return null
+    }
+    for (const tripId of tripIds) {
+        const v = snapshot.byTripId.get(tripId)
+        if (v) return v
+    }
+    return null
 }
