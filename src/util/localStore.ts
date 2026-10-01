@@ -19,12 +19,14 @@ function readRaw<T>(storageKey: string): T[] {
     }
 }
 
-// A localStorage-backed list wired for useSyncExternalStore.
-//
-// getSnapshot must return a STABLE reference between changes, otherwise
-// useSyncExternalStore re-renders forever. So we cache the last parsed array
-// and only re-parse when the underlying string actually changed. subscribe
-// fans out both cross-tab `storage` events and same-tab writes to listeners.
+/* A localStorage-backed list wired for useSyncExternalStore.
+
+getSnapshot must return a STABLE reference between changes, otherwise
+useSyncExternalStore re-renders forever. So we cache the last parsed array
+and only re-parse when the underlying string actually changed. subscribe
+fans out both cross-tab `storage` events and same-tab writes to listeners.
+*/
+
 export type LocalListStore<T> = {
     subscribe: (onChange: () => void) => () => void
     getSnapshot: () => T[]
@@ -37,11 +39,12 @@ export function createLocalListStore<T>(storageKey: string): LocalListStore<T> {
     let cache: T[] = []
     let cacheRaw: string | null = null
     let initialised = false
+    const EMPTY: T[] = []
 
     const emit = () => listeners.forEach((l) => l())
 
     const getSnapshot = (): T[] => {
-        if (typeof window === 'undefined') return []
+        if (typeof window === 'undefined') return EMPTY
         const raw = window.localStorage.getItem(storageKey)
         // Same string as last read -> hand back the cached array (stable ref).
         if (initialised && raw === cacheRaw) return cache
@@ -64,7 +67,7 @@ export function createLocalListStore<T>(storageKey: string): LocalListStore<T> {
             }
         },
         getSnapshot,
-        getServerSnapshot: () => [],
+        getServerSnapshot: () => EMPTY,
         write: (items) => {
             if (typeof window === 'undefined') return
             window.localStorage.setItem(storageKey, JSON.stringify(items))
