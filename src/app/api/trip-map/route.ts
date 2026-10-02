@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import type { LatLng, RouteStop } from '@/types/route'
 import { getBlockTripIds } from '@/lib/arrivals/block'
@@ -75,10 +76,7 @@ export async function GET(request: NextRequest) {
         )
     }
 
-    const db = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-    )
+    const db = createPublicClient()
 
     const [stops, shape, vehicle] = await Promise.all([
         getTripStops(db, tripId).catch(() => [] as RouteStop[]),

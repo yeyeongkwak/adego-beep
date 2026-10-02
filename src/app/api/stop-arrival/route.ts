@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStopArrivals } from '@/lib/arrivals/stopArrivals'
 
@@ -23,10 +23,7 @@ export async function GET(request: NextRequest) {
         Number(request.nextUrl.searchParams.get('windowMinutes')) ||
         DEFAULT_WINDOW_MINUTES
 
-    const db = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-    )
+    const db = createPublicClient()
 
     try {
         const { arrivals, feedTimestamp } = await getStopArrivals(db, stopId, {

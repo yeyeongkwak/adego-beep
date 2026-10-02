@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { distanceMeters } from '@/lib/utils'
 import type { Stop, StopMode } from '@/types/common'
@@ -34,10 +34,7 @@ export async function GET(request: NextRequest) {
     // Distances are reported relative to the view centre.
     const center = { lat: (north + south) / 2, lng: (east + west) / 2 }
 
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-    )
+    const supabase = createPublicClient()
     const { data, error } = await supabase
         .from('gtfs_stops')
         .select('stop_id, stop_code, stop_name, stop_lat, stop_lon, route_type')

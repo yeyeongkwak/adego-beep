@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createPublicClient } from '@/lib/supabase'
 import { StatusPage } from '../../_status/status-page'
 import { HomeScreen } from '@/components/page/home/home-screen'
 
@@ -8,10 +8,7 @@ import { HomeScreen } from '@/components/page/home/home-screen'
 const STALE_AFTER_MS = 30 * 60 * 1000
 
 async function isGtfsUpdating() {
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-    )
+    const supabase = createPublicClient()
 
     const { data } = await supabase
         .from('gtfs_update_status')
