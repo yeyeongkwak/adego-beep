@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { appendFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
 import AdmZip from 'adm-zip'
 import { parse } from 'csv-parse/sync'
@@ -87,6 +88,20 @@ async function main() {
     if (existingError) throw existingError
     if (existing) {
         console.log('[gtfs] same hash — skip')
+        await ignoreErrors(
+            supabase
+                .from('gtfs_update_status')
+                .update({
+                    status: 'success',
+                    completed_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('id', 1),
+            '[gtfs] status update skipped'
+        )
+        // Lets the workflow stay quiet on the (most) days nothing changed.
+        if (process.env.GITHUB_OUTPUT)
+            appendFileSync(process.env.GITHUB_OUTPUT, 'skipped=true\n')
         return
     }
 

@@ -2,7 +2,9 @@ name: Update GTFS
 
 on:
     schedule:
-        - cron: '30 17 * * 0' # 2-3am (Adelaide Timezone)
+        # Daily: Adelaide Metro republishes mid-week, and an unchanged zip is
+        # skipped by hash, so most runs are just a download.
+        - cron: '30 17 * * *' # 3-4am (Adelaide Timezone)
     workflow_dispatch:
 
 jobs:
@@ -63,7 +65,7 @@ jobs:
                     }'
 
             - name: Send Discord notification on success
-              if: success()
+              if: success() && steps.gtfs_update.outputs.skipped != 'true'
               run: |
                   curl -X POST ${{ secrets.DISCORD_SCRIPT_WEBHOOK }} \
                     -H 'Content-Type: application/json' \
