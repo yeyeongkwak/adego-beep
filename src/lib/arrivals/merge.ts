@@ -6,11 +6,10 @@ import type {
     MergedRow,
 } from '@/types/route'
 
-// Merges the scheduled timetable with realtime predictions
-// The timetable is the base list, a realtime match overrides the time and marks the row live.
-// Then attaches route number + headsign and sorts by arrival.
+// Use the timetable, and change the time when we have a live one.
 
 const ID_CHUNK = 200
+const EARLY_SECONDS = 5 * 60
 
 async function fetchByIds<T>(
     db: SupabaseClient,
@@ -34,47 +33,81 @@ async function fetchByIds<T>(
     return rows
 }
 
+// Match by stop visit, not by trip. A loop bus (like 404) stops at the last
+// stop two times, and the feed gives both the number 999.
+function pairLive(
+    scheduled: ScheduledCall[],
+    live: LiveArrival[]
+): MergedRow[] {
+    const rows: MergedRow[] = scheduled.map((call) => ({
+        tripId: call.tripId,
+        routeId: null,
+        stopSequence: call.stopSequence,
+        arrivalEpoch: call.arrivalEpoch,
+        scheduledEpoch: call.arrivalEpoch,
+        live: false,
+    }))
+    const callsByTrip = new Map<string, MergedRow[]>()
+    for (const row of rows) {
+        const list = callsByTrip.get(row.tripId)
+        if (list) list.push(row)
+        else callsByTrip.set(row.tripId, [row])
+    }
+
+    const bySequence = (a: MergedRow, b: MergedRow) =>
+        (a.stopSequence ?? 0) - (b.stopSequence ?? 0)
+    // Buses are late much more than early.
+    const latestBefore = (calls: MergedRow[], epoch: number) =>
+        calls.findLast((c) => c.scheduledEpoch! <= epoch + EARLY_SECONDS) ??
+        calls[0] ??
+        null
+
+    for (const update of live) {
+        const calls = (callsByTrip.get(update.tripId) ?? [])
+            .filter((c) => !c.live)
+            .sort(bySequence)
+        const call =
+            calls.length > 1 && update.visit === 'first'
+                ? calls[0]
+                : calls.length > 1 && update.visit === 'last'
+                  ? calls[calls.length - 1]
+                  : latestBefore(calls, update.arrivalEpoch)
+        if (call) {
+            call.arrivalEpoch = update.arrivalEpoch
+            call.routeId = update.routeId
+            call.live = true
+        } else {
+            rows.push({
+                tripId: update.tripId,
+                routeId: update.routeId,
+                stopSequence: update.stopSequence,
+                arrivalEpoch: update.arrivalEpoch,
+                scheduledEpoch: null,
+                live: true,
+            })
+        }
+    }
+    return rows
+}
+
 export async function mergeArrivals(
     db: SupabaseClient,
     scheduled: ScheduledCall[],
     live: LiveArrival[],
     nowEpoch: number,
+    lowerEpoch: number,
     limit: number
 ): Promise<StopArrival[]> {
-    const byTrip = new Map<string, MergedRow>()
-
-    for (const call of scheduled) {
-        byTrip.set(call.tripId, {
-            tripId: call.tripId,
-            routeId: null,
-            stopSequence: call.stopSequence,
-            arrivalEpoch: call.arrivalEpoch,
-            scheduledEpoch: call.arrivalEpoch,
-            live: false,
-        })
-    }
-
-    // Overwrite the scheduled time with the live prediction when available.
-    for (const update of live) {
-        const existing = byTrip.get(update.tripId)
-        byTrip.set(update.tripId, {
-            tripId: update.tripId,
-            routeId: update.routeId ?? existing?.routeId ?? null,
-            stopSequence: update.stopSequence ?? existing?.stopSequence ?? null,
-            arrivalEpoch: update.arrivalEpoch,
-            // Keep the timetable time so the delay can be derived.
-            scheduledEpoch: existing?.scheduledEpoch ?? null,
-            live: true,
-        })
-    }
-
-    const merged = [...byTrip.values()]
+    // Keep one row per trip. On a loop, the later one is the bus finishing.
+    const seen = new Set<string>()
+    const merged = pairLive(scheduled, live)
+        .filter((r) => r.arrivalEpoch >= lowerEpoch)
         .sort((a, b) => a.arrivalEpoch - b.arrivalEpoch)
+        .filter((r) => !seen.has(r.tripId) && seen.add(r.tripId))
         .slice(0, limit)
     if (merged.length === 0) return []
 
-    // route_id is missing on schedule-only rows (stop_times lacks it), so
-    // resolve it via the trip. headsign also comes from the trip.
+    // stop_times has no route_id, so we get it from the trip. Headsign too.
     const tripIds = [...new Set(merged.map((m) => m.tripId))]
     const trips = await fetchByIds<{
         trip_id: string

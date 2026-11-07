@@ -7,14 +7,12 @@ import type {
     VehicleSnapshot,
 } from '@/types/route'
 
-// Adelaide Metro GTFS-R TripUpdates: a ~240KB full snapshot the agency refreshes
-// on its own cadence, carrying live predicted times for currently-tracked trips.
+// Adelaide Metro live trip updates. One big file (~240KB) for all buses.
 
 const FEED_URL =
     process.env.GTFS_RT_TRIP_UPDATES_URL ??
     'https://gtfs.adelaidemetro.com.au/v1/realtime/trip_updates'
 
-// One download serves every request for a short window.
 const FEED_TTL_MS = 20_000
 
 function toNumber(value: unknown): number | null {
@@ -41,12 +39,13 @@ async function loadFeed(): Promise<FeedSnapshot> {
         new Uint8Array(await res.arrayBuffer())
     )
 
-    // Feed is per-trip; index by stop so a lookup is one map hit.
     const byStopId = new Map<string, StopArrivalUpdate[]>()
+    const byTripId = new Map<string, StopArrivalUpdate[]>()
     for (const entity of feed.entity) {
         const tripUpdate = entity.tripUpdate
         const tripId = tripUpdate?.trip?.tripId
         if (!tripUpdate || !tripId) continue
+        const tripUpdates: StopArrivalUpdate[] = []
         for (const update of tripUpdate.stopTimeUpdate ?? []) {
             const stopId = update.stopId
             const arrivalEpoch = toNumber(update.arrival?.time)
@@ -54,19 +53,23 @@ async function loadFeed(): Promise<FeedSnapshot> {
             const entry: StopArrivalUpdate = {
                 tripId,
                 routeId: tripUpdate.trip?.routeId ?? null,
+                stopId,
                 stopSequence: update.stopSequence ?? null,
                 arrivalEpoch,
             }
+            tripUpdates.push(entry)
             const list = byStopId.get(stopId)
             if (list) list.push(entry)
             else byStopId.set(stopId, [entry])
         }
+        byTripId.set(tripId, tripUpdates)
     }
 
     return {
         fetchedAt: Date.now(),
         feedTimestamp: toNumber(feed.header?.timestamp),
         byStopId,
+        byTripId,
     }
 }
 
@@ -110,12 +113,22 @@ export async function getLiveArrivals(
             (u) =>
                 u.arrivalEpoch >= lowerEpoch && u.arrivalEpoch <= windowEndEpoch
         )
-        .map((u) => ({
-            tripId: u.tripId,
-            routeId: u.routeId,
-            stopSequence: u.stopSequence,
-            arrivalEpoch: u.arrivalEpoch,
-        }))
+        .map((u): LiveArrival => {
+            const others = (snapshot.byTripId.get(u.tripId) ?? []).filter(
+                (o) => o.stopId !== u.stopId
+            )
+            return {
+                tripId: u.tripId,
+                routeId: u.routeId,
+                stopSequence: u.stopSequence,
+                arrivalEpoch: u.arrivalEpoch,
+                visit: others.some((o) => o.arrivalEpoch > u.arrivalEpoch)
+                    ? 'first'
+                    : others.length > 0
+                      ? 'last'
+                      : null,
+            }
+        })
 
     return { arrivals, feedTimestamp: snapshot.feedTimestamp }
 }
@@ -188,8 +201,7 @@ export async function getVehicleSnapshot(): Promise<VehicleSnapshot> {
     return vehicleInFlight
 }
 
-// First live vehicle found among the given trips (the block chain). Best-effort:
-// returns null if the feed is unavailable or none are currently tracked.
+// A vehicle only says its current trip, so we check every trip in the block.
 export async function findVehicleForTrips(
     tripIds: string[]
 ): Promise<VehiclePosition | null> {

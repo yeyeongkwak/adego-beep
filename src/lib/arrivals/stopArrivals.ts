@@ -4,10 +4,11 @@ import { getLiveArrivals } from './realtime'
 import { adelaideNow, getScheduledCalls } from './schedule'
 import { mergeArrivals } from './merge'
 
-// Arrivals for one stop: the static timetable merged with GTFS-R predictions.
-// Shared by /api/stop-arrival (stop sheet) and /api/directions (journey times).
+// Timetable + live times for one stop.
 
 const GRACE_SECONDS = 60
+// If a bus is later than this, we can't show how late it is.
+const LATE_LOOKBACK_SECONDS = 60 * 60
 
 export async function getStopArrivals(
     db: SupabaseClient,
@@ -20,7 +21,13 @@ export async function getStopArrivals(
     const windowEndEpoch = nowEpoch + windowMinutes * 60
 
     const [scheduled, live] = await Promise.all([
-        getScheduledCalls(db, stopId, now, lowerEpoch, windowEndEpoch),
+        getScheduledCalls(
+            db,
+            stopId,
+            now,
+            nowEpoch - LATE_LOOKBACK_SECONDS,
+            windowEndEpoch
+        ),
         getLiveArrivals(stopId, lowerEpoch, windowEndEpoch),
     ])
 
@@ -29,6 +36,7 @@ export async function getStopArrivals(
         scheduled,
         live.arrivals,
         nowEpoch,
+        lowerEpoch,
         limit
     )
     return { arrivals, feedTimestamp: live.feedTimestamp }

@@ -5,56 +5,61 @@ export type GoogleRoute = {
     legs?: { steps?: TransitStep[] }[]
 }
 
-// One realtime stop_time_update from the GTFS-R feed, indexed by stop.
+// One live time for one stop, from the feed.
 export type StopArrivalUpdate = {
     tripId: string
     routeId: string | null
+    stopId: string
     stopSequence: number | null
     arrivalEpoch: number
 }
 
-// Decoded + indexed realtime snapshot, cached between requests.
+// Live feed data, saved for a short time.
 export type FeedSnapshot = {
     fetchedAt: number
     feedTimestamp: number | null
     byStopId: Map<string, StopArrivalUpdate[]>
+    byTripId: Map<string, StopArrivalUpdate[]>
 }
 
-// One vehicle's live position from the VehiclePositions feed.
+// Where one vehicle is now.
 export type VehiclePosition = {
     tripId: string
     routeId: string | null
     lat: number
     lng: number
-    // How far along the trip the vehicle is; lets us count stops to a boarding
-    // point. stopId is the stop it's currently at/approaching.
+    // Which stop number the vehicle is at. We use it to count stops.
+    // stopId is the stop it is at or going to.
     currentStopSequence: number | null
     stopId: string | null
 }
 
-// Decoded + indexed vehicle snapshot, cached between requests.
+// Vehicle feed data, saved for a short time.
 export type VehicleSnapshot = {
     fetchedAt: number
     feedTimestamp: number | null
     byTripId: Map<string, VehiclePosition>
 }
 
-// A scheduled call at a stop, resolved to an absolute epoch for the service day.
+// A timetable time at a stop, in epoch seconds.
 export type ScheduledCall = {
     tripId: string
     stopSequence: number | null
     arrivalEpoch: number
 }
 
-// A realtime prediction for a stop, filtered to the requested window.
+// A live time for a stop.
+// visit: a loop bus comes here two times. Is this the first or the last one?
+// null if we only have this one.
 export type LiveArrival = {
     tripId: string
     routeId: string | null
     stopSequence: number | null
     arrivalEpoch: number
+    visit: 'first' | 'last' | null
 }
 
-// Final shape returned to the client (timetable + realtime merged).
+// What we send to the app (timetable + live).
 export type StopArrival = {
     route: string
     destination: string
@@ -63,12 +68,11 @@ export type StopArrival = {
     tripId: string
     stopSequence: number | null
     color: string | null
-    // Absolute times (epoch seconds): the best-known arrival (realtime when
-    // live, otherwise timetable) and the original timetable time, if known.
+    // Epoch seconds. arrivalEpoch is the best time we know (live or
+    // timetable). scheduledEpoch is the timetable time.
     arrivalEpoch: number
     scheduledEpoch: number | null
-    // Minutes behind (+) / ahead (-) of timetable; null when not live or the
-    // scheduled time isn't in the window.
+    // Minutes late (+) or early (-). null if not live or no timetable time.
     delayMin: number | null
 }
 
@@ -81,13 +85,13 @@ export type MergedRow = {
     live: boolean
 }
 
-// Journey planner result: walk → ride → walk, one card per option.
+// Journey result: walk, ride, walk. One card for each option.
 export type LatLng = { lat: number; lng: number }
 
 export type RouteStop = LatLng & { name: string }
 
-// polylines: the walking route as Google's encoded polylines, one per walk
-// step (they can't be joined without decoding). Empty when unknown.
+// polylines: walking lines from Google, one for each walk step. Empty if we
+// don't know.
 export type WalkLeg = {
     type: 'walk'
     minutes: number
