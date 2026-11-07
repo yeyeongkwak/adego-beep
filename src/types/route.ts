@@ -86,12 +86,13 @@ export type LatLng = { lat: number; lng: number }
 
 export type RouteStop = LatLng & { name: string }
 
-// path: the walking route (Google's polyline); empty when unknown.
+// polylines: the walking route as Google's encoded polylines, one per walk
+// step (they can't be joined without decoding). Empty when unknown.
 export type WalkLeg = {
     type: 'walk'
     minutes: number
     to: string
-    path: LatLng[]
+    polylines: string[]
 }
 
 export type BusLeg = {
@@ -107,7 +108,8 @@ export type BusLeg = {
     // when the user opens the vehicle map (see /api/trip-map).
     tripId: string | null
     path: RouteStop[] // stops loaded on-demand; before load: Google's 2-point boarding→alighting
-    shape: LatLng[] // road-shape polyline loaded on-demand; empty before load
+    shape: LatLng[] // GTFS road shape, filled on demand (vehicle map); else empty
+    polyline: string | null // Google's encoded road line for just this ride
     minutes: number
     departsIn: number
     // Absolute departure (epoch seconds) from the boarding stop, when known.

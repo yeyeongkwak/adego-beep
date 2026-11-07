@@ -11,11 +11,12 @@ import { MapPin } from 'lucide-react'
 import type { BusLeg, Journey, LatLng, WalkLeg } from '@/types/route'
 import { ModeIcon } from './common'
 import { haversineKm } from '@/util/map/distance'
+import { decodePolyline } from '@/util/map/polyline'
+import { fitCamera, type Padding } from '@/util/map/fitCamera'
 
-/* Draws the legs as polylines (bus solid in route colour, walks dotted)
-and the stops, Google Maps style, then frames the camera. When we have both a live
-vehicle and the user's location, it zooms to those two (that's what the rider
-cares about); otherwise it falls back to framing the whole journey.
+/* Draws the legs as polylines (bus solid in route colour, walks dotted) and
+the stops, Google Maps style. Lines, camera and the user's dot are separate so
+a moving GPS fix only moves the dot. See Camera for how the view is framed.
 */
 
 // Get off / board this close together is one transfer point, not two pins.
@@ -75,48 +76,52 @@ const StopCallout = ({ rows }: { rows: Callout['rows'] }) => (
     </div>
 )
 
-function JourneyLines({
-    journey,
-    userLocation,
-}: {
-    journey: Journey
-    userLocation: LatLng | null
-}) {
+// Road line per ride: the GTFS shape when loaded, else Google's road line,
+// else a straight line between stops. Walks: one line per Google walk step.
+function journeyLines(journey: Journey) {
+    const buses = journey.legs.filter((l): l is BusLeg => l.type === 'bus')
+    const busLines = buses.map((bus) =>
+        bus.shape.length > 1
+            ? bus.shape
+            : bus.polyline
+              ? decodePolyline(bus.polyline)
+              : bus.path
+    )
+    const walkLines = journey.legs
+        .filter((l): l is WalkLeg => l.type === 'walk')
+        .flatMap((w) => w.polylines.map(decodePolyline))
+        .filter((line) => line.length > 1)
+    return { buses, busLines, walkLines }
+}
+
+// Drawn only when the journey changes — the user's dot moves on its own
+// marker, so GPS updates never rebuild these.
+function JourneyLines({ journey }: { journey: Journey }) {
     const map = useMap()
-    // Camera framing runs once on first mount. Subsequent journey updates
-    // (e.g. vehicle position polling) only redraw markers — they must NOT
-    // reset the zoom/pan because the user may have manually panned/zoomed.
-    const cameraSentRef = useRef(false)
 
     useEffect(() => {
         if (!map) return
+        const { buses, busLines, walkLines } = journeyLines(journey)
         const lines: google.maps.Polyline[] = []
-        const buses = journey.legs.filter((l): l is BusLeg => l.type === 'bus')
 
-        // Solid coloured line per ride: the road shape when we have it, else a
-        // straight line between stops.
-        for (const bus of buses) {
-            const line = bus.shape.length > 1 ? bus.shape : bus.path
+        buses.forEach((bus, i) => {
             lines.push(
                 new google.maps.Polyline({
                     map,
-                    path: line,
+                    path: busLines[i],
                     strokeColor: bus.color ?? '#002b5c',
                     strokeWeight: 5,
                     strokeOpacity: 0.9,
                 })
             )
-        }
+        })
 
         // Walks dotted like Google Maps: invisible stroke, repeating dots.
-        const walks = journey.legs.filter(
-            (l): l is WalkLeg => l.type === 'walk' && l.path.length > 1
-        )
-        for (const walk of walks) {
+        for (const walk of walkLines) {
             lines.push(
                 new google.maps.Polyline({
                     map,
-                    path: walk.path,
+                    path: walk,
                     strokeOpacity: 0,
                     icons: [
                         {
@@ -136,41 +141,196 @@ function JourneyLines({
             )
         }
 
-        // Camera focus — only on first render (not on vehicle position updates).
-        if (!cameraSentRef.current) {
+        return () => lines.forEach((l) => l.setMap(null))
+    }, [map, journey])
+
+    return null
+}
+
+// Further than this from the boarding stop (e.g. reopening an old trip from
+// home), framing both would shrink the route to nothing; show the route.
+const NEAR_BOARDING_KM = 5
+
+// Keep framed points clear of the back button (top) and of whatever a bottom
+// sheet covers, so they land in the part of the map you can actually see.
+const paddingFor = (coverPx: number): Padding => ({
+    top: 72,
+    left: 40,
+    right: 40,
+    bottom: coverPx + 32,
+})
+
+// One glide per map at a time; a new one (or the user grabbing the map)
+// cancels the last.
+const glides = new WeakMap<google.maps.Map, number>()
+const stopGlide = (map: google.maps.Map) =>
+    cancelAnimationFrame(glides.get(map) ?? 0)
+
+const GLIDE_MS = 600
+const easeInOut = (t: number) =>
+    t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
+
+// Ease the camera to `to` (fractional zoom keeps vector maps smooth).
+// Instant for reduced-motion users.
+const glide = (map: google.maps.Map, to: { center: LatLng; zoom: number }) => {
+    stopGlide(map)
+    const from = map.getCenter()
+    const fromZoom = map.getZoom()
+    if (
+        !from ||
+        fromZoom == null ||
+        matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+        map.moveCamera(to)
+        return
+    }
+    const start = performance.now()
+    const step = (now: number) => {
+        const t = Math.min(1, (now - start) / GLIDE_MS)
+        const k = easeInOut(t)
+        map.moveCamera({
+            center: {
+                lat: from.lat() + (to.center.lat - from.lat()) * k,
+                lng: from.lng() + (to.center.lng - from.lng()) * k,
+            },
+            zoom: fromZoom + (to.zoom - fromZoom) * k,
+        })
+        if (t < 1) glides.set(map, requestAnimationFrame(step))
+    }
+    glides.set(map, requestAnimationFrame(step))
+}
+
+// Frame points in the visible area, never closer than maxZoom (so one point,
+// or two very close ones, stay at street level). Glides there unless
+// `instant` (the very first framing, where there's nothing to glide from).
+const fit = (
+    map: google.maps.Map,
+    points: LatLng[],
+    coverPx: number,
+    maxZoom = 17,
+    instant = false
+) => {
+    if (!points.length) return
+    const div = map.getDiv()
+    const camera = fitCamera(
+        points,
+        { w: div.clientWidth, h: div.clientHeight },
+        paddingFor(coverPx),
+        maxZoom
+    )
+    if (instant) {
+        stopGlide(map)
+        map.moveCamera(camera)
+    } else glide(map, camera)
+}
+
+const journeyPoints = (journey: Journey): LatLng[] => {
+    const { buses, busLines, walkLines } = journeyLines(journey)
+    return [
+        journey.origin,
+        journey.destination,
+        ...buses.flatMap((b) => b.path),
+        ...busLines.flat(),
+        ...walkLines.flat(),
+    ]
+}
+
+// Two points: zoom out further the further apart they are.
+const pairMaxZoom = (a: LatLng, b: LatLng) => {
+    const km = haversineKm(a, b)
+    return km < 0.3 ? 17 : km < 1 ? 16 : km < 3 ? 15 : 13
+}
+
+// vaul snap point -> px of the map it covers (fraction of height, or "Npx").
+const coverPx = (map: google.maps.Map, sheet: number | string) =>
+    typeof sheet === 'number'
+        ? map.getDiv().clientHeight * sheet
+        : parseFloat(sheet) || 0
+
+/* Initial camera. Never fights the user: once they drag, it stops.
+- 'boarding' (journey detail): you + your boarding stop. Until the first GPS
+  fix (or if you're far away) it shows the whole route, then refits once.
+- 'vehicle' (live bus sheet): the bus + you, framed once.
+- `target` (a tapped timeline row) always wins and ends the automatic
+  framing, same as the user dragging the map.
+All framing leaves room for `sheet` (a bottom sheet over the map).
+*/
+function Camera({
+    journey,
+    userLocation,
+    focus,
+    target,
+    sheet,
+}: {
+    journey: Journey
+    userLocation: LatLng | null
+    focus: 'boarding' | 'vehicle'
+    target: LatLng[] | null
+    sheet: number | string
+}) {
+    const map = useMap()
+    const framed = useRef<'none' | 'route' | 'final'>('none')
+    const touched = useRef(false)
+    // Read at framing time; the sheet moving shouldn't itself move the map.
+    const sheetRef = useRef(sheet)
+    useEffect(() => {
+        sheetRef.current = sheet
+    }, [sheet])
+
+    useEffect(() => {
+        if (!map) return
+        const l = map.addListener('dragstart', () => {
+            touched.current = true
+            stopGlide(map)
+        })
+        return () => l.remove()
+    }, [map])
+
+    // A new array per tap, so tapping the same row again re-centres it.
+    useEffect(() => {
+        if (!map || !target?.length) return
+        fit(map, target, coverPx(map, sheetRef.current))
+        touched.current = true
+    }, [map, target])
+
+    useEffect(() => {
+        if (!map || framed.current === 'final' || touched.current) return
+        const cover = coverPx(map, sheetRef.current)
+        const buses = journey.legs.filter((l): l is BusLeg => l.type === 'bus')
+
+        if (focus === 'vehicle') {
             const vehicle = buses.find((b) => b.vehicle)?.vehicle ?? null
-            const bounds = new google.maps.LatLngBounds()
-            if (vehicle && userLocation) {
-                const distKm = haversineKm(vehicle, userLocation)
-                const targetZoom =
-                    distKm < 0.3 ? 17 : distKm < 1 ? 16 : distKm < 3 ? 15 : 13
-                bounds.extend(vehicle)
-                bounds.extend(userLocation)
-                map.fitBounds(bounds, 80)
-                google.maps.event.addListenerOnce(map, 'idle', () => {
-                    const actual = map.getZoom() ?? targetZoom
-                    const clamped = Math.min(actual, targetZoom)
-                    if (clamped !== actual) map.setZoom(clamped)
-                })
-            } else if (vehicle) {
-                map.panTo(vehicle)
-                map.setZoom(15)
-            } else {
-                bounds.extend(journey.origin)
-                bounds.extend(journey.destination)
-                buses.forEach((b) => {
-                    b.path.forEach((p) => bounds.extend(p))
-                    b.shape.forEach((p) => bounds.extend(p))
-                })
-                walks.forEach((w) => w.path.forEach((p) => bounds.extend(p)))
-                if (userLocation) bounds.extend(userLocation)
-                map.fitBounds(bounds, 48)
-            }
-            cameraSentRef.current = true
+            if (vehicle && userLocation)
+                fit(
+                    map,
+                    [vehicle, userLocation],
+                    cover,
+                    pairMaxZoom(vehicle, userLocation),
+                    true
+                )
+            else if (vehicle) fit(map, [vehicle], cover, 15, true)
+            else fit(map, journeyPoints(journey), cover, 17, true)
+            framed.current = 'final'
+            return
         }
 
-        return () => lines.forEach((l) => l.setMap(null))
-    }, [map, journey, userLocation])
+        const board = buses[0]?.path[0] ?? journey.origin
+        if (
+            userLocation &&
+            haversineKm(userLocation, board) < NEAR_BOARDING_KM
+        ) {
+            fit(
+                map,
+                [userLocation, board],
+                cover,
+                pairMaxZoom(userLocation, board)
+            )
+            framed.current = 'final'
+        } else if (framed.current === 'none') {
+            fit(map, journeyPoints(journey), cover, 17, true)
+            framed.current = 'route'
+        }
+    }, [map, journey, userLocation, focus])
 
     return null
 }
@@ -181,10 +341,17 @@ export function RouteMap({
     // origin dot + destination pin only make sense for a whole journey
     // vehicle map) hides them.
     showEndpoints = true,
+    focus = 'vehicle',
+    target = null,
+    // Bottom sheet over the map, as a vaul snap point (0.5 or "160px").
+    sheet = 0,
 }: {
     journey: Journey
     userLocation?: LatLng | null
     showEndpoints?: boolean
+    focus?: 'boarding' | 'vehicle'
+    target?: LatLng[] | null
+    sheet?: number | string
 }) {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     const [mapReady, setMapReady] = useState(false)
@@ -205,9 +372,13 @@ export function RouteMap({
                     gestureHandling="greedy"
                     onTilesLoaded={() => setMapReady(true)}
                 >
-                    <JourneyLines
+                    <JourneyLines journey={journey} />
+                    <Camera
                         journey={journey}
                         userLocation={userLocation}
+                        focus={focus}
+                        target={target}
+                        sheet={sheet}
                     />
 
                     {mapReady && (

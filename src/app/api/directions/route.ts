@@ -1,14 +1,13 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStopArrivals } from '@/lib/arrivals/stopArrivals'
 import { getBlockTripIds } from '@/lib/arrivals/block'
 import { findVehicleForTrips } from '@/lib/arrivals/realtime'
 import { distanceMeters } from '@/lib/utils'
-import { decodePolyline } from '@/util/map/polyline'
 import type { StopMode } from '@/types/common'
 import type {
     GoogleRoute,
-    LatLng,
     BusLeg,
     Journey,
     JourneyLeg,
@@ -98,11 +97,6 @@ function toRouteStop(stop: GoogleStop | undefined): RouteStop | null {
     return { name: stop?.name ?? '', lat: ll.latitude, lng: ll.longitude }
 }
 
-const decodeStep = (step: TransitStep): LatLng[] =>
-    step.polyline?.encodedPolyline
-        ? decodePolyline(step.polyline.encodedPolyline)
-        : []
-
 // A ride as Google describes it (times are Google's, replaced later).
 function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
     const td = step.transitDetails
@@ -122,8 +116,9 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
         // Google doesn't list intermediate stops; boarding + alighting only.
         // Enriched later with the full GTFS stop list + shape.
         path: [from, to].filter((s): s is RouteStop => s != null),
-        // Google's road line for just this ride, until the GTFS shape loads.
-        shape: decodeStep(step),
+        shape: [],
+        // Kept encoded (~8x smaller than points); decoded only when drawn.
+        polyline: step.polyline?.encodedPolyline ?? null,
         tripId: null, // filled by the enricher once matched to a GTFS trip
         minutes: Math.round(durationToSeconds(step.staticDuration) / 60),
         departureEpoch,
@@ -140,16 +135,25 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
 // Google splits walking into one step per instruction ("turn left…"), so
 //consecutive walk steps are summed into a single walk leg.
 
-function buildLegs(steps: TransitStep[], nowEpoch: number): JourneyLeg[] {
+function buildLegs(
+    steps: TransitStep[],
+    nowEpoch: number,
+    destinationName: string
+): JourneyLeg[] {
     const legs: JourneyLeg[] = []
     let walkSeconds = 0
-    let walkPath: LatLng[] = []
+    let walkPolylines: string[] = []
     const flushWalk = () => {
         const minutes = Math.round(walkSeconds / 60)
         if (minutes > 0)
-            legs.push({ type: 'walk', minutes, to: '', path: walkPath })
+            legs.push({
+                type: 'walk',
+                minutes,
+                to: '',
+                polylines: walkPolylines,
+            })
         walkSeconds = 0
-        walkPath = []
+        walkPolylines = []
     }
     for (const step of steps) {
         if (step.travelMode === 'TRANSIT') {
@@ -157,10 +161,18 @@ function buildLegs(steps: TransitStep[], nowEpoch: number): JourneyLeg[] {
             legs.push(mapTransitStep(step, nowEpoch))
         } else {
             walkSeconds += durationToSeconds(step.staticDuration)
-            walkPath.push(...decodeStep(step))
+            const encoded = step.polyline?.encodedPolyline
+            if (encoded) walkPolylines.push(encoded)
         }
     }
     flushWalk()
+    // Name where each walk ends: the next ride's boarding stop, else the
+    // destination (the final walk).
+    legs.forEach((leg, i) => {
+        if (leg.type !== 'walk') return
+        const next = legs[i + 1]
+        leg.to = next?.type === 'bus' ? next.from : destinationName
+    })
     return legs
 }
 
@@ -367,10 +379,7 @@ export async function POST(request: NextRequest) {
         }
 
         const nowEpoch = Math.floor(Date.now() / 1000)
-        const db = createClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-        )
+        const db = createPublicClient()
         const enrich = createEnricher(db, nowEpoch)
 
         const originStop: RouteStop = {
@@ -391,7 +400,7 @@ export async function POST(request: NextRequest) {
                 // The individual walk/ride segments live inside steps[].
                 const steps = route.legs?.[0]?.steps ?? []
                 const legs = await Promise.all(
-                    buildLegs(steps, nowEpoch).map((leg) =>
+                    buildLegs(steps, nowEpoch, destStop.name).map((leg) =>
                         leg.type === 'bus' ? enrich(leg) : leg
                     )
                 )
