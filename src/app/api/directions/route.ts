@@ -3,7 +3,8 @@ import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { getStopArrivals } from '@/lib/arrivals/stopArrivals'
 import { getBlockTripIds } from '@/lib/arrivals/block'
-import { findVehicleForTrips } from '@/lib/arrivals/realtime'
+import { findVehicleForTrips, getTripUpdates } from '@/lib/arrivals/realtime'
+import { getTripCalls, nearestIndex, type TripCall } from '@/lib/tripStops'
 import { distanceMeters } from '@/lib/utils'
 import type { StopMode } from '@/types/common'
 import type {
@@ -13,21 +14,19 @@ import type {
     JourneyLeg,
     RouteStop,
     StopArrival,
+    StopArrivalUpdate,
     VehiclePosition,
     GoogleStop,
     TransitStep,
 } from '@/types/route'
 
-/* Transit directions: Google Routes API (New) plans the journey (which lines,
-where to walk), then each ride's times are swapped for our own GTFS data —
-the realtime prediction when the trip is tracked, otherwise the timetable.
-If a ride can't be matched to our data, Google's time is kept as a fallback.
-*/
+// Google finds the route. Then we change each ride's times to our GTFS times
+// (live or timetable). If we can't match a ride, we keep Google's time.
 const COMPUTE_ROUTES_URL =
     'https://routes.googleapis.com/directions/v2:computeRoutes'
 const TZ = 'Australia/Adelaide'
 
-// Only request what the cards render.
+// Ask only for what the cards show.
 const FIELD_MASK = [
     'routes.duration',
     'routes.legs.duration',
@@ -37,15 +36,17 @@ const FIELD_MASK = [
     'routes.legs.steps.transitDetails',
 ].join(',')
 
-// GTFS matching tuning.
-const STOP_SEARCH_DEG = 0.0015 // ~165m box around Google's stop
+// Settings for matching GTFS.
+const STOP_SEARCH_DEG = 0.0015 // about 165m around Google's stop
 const STOP_MAX_DISTANCE_M = 120
 const STOP_CANDIDATES = 4
 const ARRIVALS_WINDOW_MINUTES = 180
 const ARRIVALS_LIMIT = 80
 const MATCH_TOLERANCE_S = 15 * 60
+const ALIGHT_MAX_DISTANCE_M = 250
+const TRANSFER_BUFFER_S = 60
 
-// Google transit vehicle types -> our BUS/TRAM/RAIL grouping.
+// Google vehicle types -> our BUS/TRAM/RAIL.
 function vehicleTypeToMode(type: string | undefined): StopMode {
     switch (type) {
         case 'TRAM':
@@ -64,7 +65,7 @@ function vehicleTypeToMode(type: string | undefined): StopMode {
     }
 }
 
-// "754s" -> 754. Routes API returns durations as second strings.
+// "754s" -> 754. Google gives durations like this.
 function durationToSeconds(value: string | undefined): number {
     if (!value) return 0
     const seconds = Number(String(value).replace('s', ''))
@@ -77,8 +78,7 @@ function isoToEpoch(iso: string | undefined): number | null {
     return Number.isFinite(ms) ? Math.floor(ms / 1000) : null
 }
 
-// Clock time in Adelaide regardless of the server's own timezone (UTC on
-// Vercel), so "11:48 am" matches what the rider sees locally.
+// Time in Adelaide. The server can be in UTC (Vercel), so we set the timezone.
 function formatClock(epoch: number | null): string {
     if (epoch == null) return ''
     return new Date(epoch * 1000).toLocaleTimeString('en-AU', {
@@ -98,13 +98,14 @@ function toRouteStop(stop: GoogleStop | undefined): RouteStop | null {
     return { name: stop?.name ?? '', lat: ll.latitude, lng: ll.longitude }
 }
 
-// A ride as Google describes it (times are Google's, replaced later).
+// A ride from Google. We change the times later.
 function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
     const td = step.transitDetails
     const line = td?.transitLine
     const from = toRouteStop(td?.stopDetails?.departureStop)
     const to = toRouteStop(td?.stopDetails?.arrivalStop)
     const departureEpoch = isoToEpoch(td?.stopDetails?.departureTime)
+    const arrivalEpoch = isoToEpoch(td?.stopDetails?.arrivalTime)
     return {
         type: 'bus',
         mode: vehicleTypeToMode(line?.vehicle?.type),
@@ -114,16 +115,17 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
         from: from?.name ?? '',
         fromCode: null,
         to: to?.name ?? '',
-        // Google doesn't list intermediate stops; boarding + alighting only.
-        // Enriched later with the full GTFS stop list + shape.
+        // Google gives only the start and end stops. We add all stops later.
         path: [from, to].filter((s): s is RouteStop => s != null),
         shape: [],
-        // Kept encoded (~8x smaller than points); decoded only when drawn.
+        // Kept encoded because it is much smaller.
         polyline: step.polyline?.encodedPolyline ?? null,
-        tripId: null, // filled by the enricher once matched to a GTFS trip
+        tripId: null, // set later when we match a GTFS trip
         minutes: Math.round(durationToSeconds(step.staticDuration) / 60),
         departureEpoch,
         scheduledDepartureEpoch: departureEpoch,
+        arrivalEpoch,
+        arrivalLive: false,
         departsIn:
             departureEpoch != null
                 ? minutesFromNow(departureEpoch, nowEpoch)
@@ -134,8 +136,7 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
     }
 }
 
-// Google splits walking into one step per instruction ("turn left…"), so
-//consecutive walk steps are summed into a single walk leg.
+// Google gives one walk step per instruction, so we add them into one walk.
 
 function buildLegs(
     steps: TransitStep[],
@@ -168,8 +169,7 @@ function buildLegs(
         }
     }
     flushWalk()
-    // Name where each walk ends: the next ride's boarding stop, else the
-    // destination (the final walk).
+    // Where each walk ends: the next bus stop, or the destination.
     legs.forEach((leg, i) => {
         if (leg.type !== 'walk') return
         const next = legs[i + 1]
@@ -180,15 +180,13 @@ function buildLegs(
 
 type GtfsStop = { stopId: string; code: string | null }
 
-// Google's boarding stop -> nearby GTFS platforms, best guess first. Google
-// names a station ("Rundle Mall") while each direction boards at its own
-// platform ("Rundle Mall Tram Stop" x2), so the caller checks several
-// against the timetable instead of trusting the single nearest.
+// GTFS stops near Google's stop, best first. Google gives one station name,
+// but each direction has its own platform, so we try a few.
 async function findGtfsStops(
     db: SupabaseClient,
     stop: RouteStop
 ): Promise<GtfsStop[]> {
-    // `*` so this keeps working on a DB that predates location_type (009).
+    // Use `*` so it still works on a DB without location_type (009).
     const { data, error } = await db
         .from('gtfs_stops')
         .select('*')
@@ -201,12 +199,11 @@ async function findGtfsStops(
     const scored: { stop: GtfsStop; score: number }[] = []
     for (const row of data) {
         if (row.stop_lat == null || row.stop_lon == null) continue
-        // Stations, entrances etc. have no stop_times; only 0/empty boards.
+        // Stations and entrances have no buses. Only 0 or empty is a real stop.
         if (row.location_type != null && row.location_type !== 0) continue
         const d = distanceMeters(stop, { lat: row.stop_lat, lng: row.stop_lon })
         const sameName = (row.stop_name ?? '').startsWith(stop.name)
-        // Google's pin can sit a bay or two off at interchanges; a matching
-        // name is trusted anywhere in the search box.
+        // Google's pin can be a bit off. If the name matches, allow further.
         if (d > STOP_MAX_DISTANCE_M && !sameName) continue
         const score = sameName ? d - 1000 : d
         scored.push({
@@ -224,30 +221,31 @@ const norm = (r: string) => r.trim().toUpperCase()
 
 type ArrivalMatch = { arrival: StopArrival; sameHeadsign: boolean; gap: number }
 
-// Right direction first, then closest time. The headsign separates the two
-// directions of a line (and their opposite-side platforms); it only falls
-// back to time alone when Google spells the headsign differently from GTFS.
+// Same direction (headsign) first, then the closest time.
 const isBetter = (a: ArrivalMatch, b: ArrivalMatch | null) =>
     !b || (a.sameHeadsign !== b.sameHeadsign ? a.sameHeadsign : a.gap < b.gap)
 
-// The trip on the same line whose time is closest to Google's. Google's time
-// may be its own realtime estimate or the timetable, so both of ours count.
+// Google's time can be live or timetable, so we check both. If the rider
+// can't get to the stop in time (notBefore), take the next bus.
 function pickArrival(
     arrivals: StopArrival[],
     leg: BusLeg,
-    nowEpoch: number
+    nowEpoch: number,
+    notBefore: number | null
 ): ArrivalMatch | null {
-    const target = leg.departureEpoch ?? nowEpoch
+    const planned = leg.departureEpoch ?? nowEpoch
+    const missed = notBefore != null && planned < notBefore
+    const target = missed ? notBefore : planned
     let best: ArrivalMatch | null = null
     for (const a of arrivals) {
         if (norm(a.route) !== norm(leg.route)) continue
+        if (notBefore != null && a.arrivalEpoch < notBefore) continue
         const gap = Math.min(
             Math.abs(a.arrivalEpoch - target),
             Math.abs((a.scheduledEpoch ?? a.arrivalEpoch) - target)
         )
-        // Without a Google time there's nothing to check against, so the
-        // trip closest to now (possibly one that just left) is the best guess.
-        if (leg.departureEpoch != null && gap > MATCH_TOLERANCE_S) continue
+        if (leg.departureEpoch != null && !missed && gap > MATCH_TOLERANCE_S)
+            continue
         const match = {
             arrival: a,
             sameHeadsign: norm(a.destination) === norm(leg.headsign),
@@ -258,11 +256,75 @@ function pickArrival(
     return best
 }
 
-// Swap Google's ride times for ours. Lookups are memoised per request because
-// alternative routes usually share boarding stops.
+// Timetable time at the get-off stop + the delay from the last live time
+// before it. The feed often has only the next few stops.
+function alightingTime(
+    calls: TripCall[],
+    updates: StopArrivalUpdate[],
+    match: StopArrival,
+    alight: RouteStop
+): { epoch: number; live: boolean } | null {
+    const b = calls.findIndex((c) => c.stopSequence === match.stopSequence)
+    const boardSecs =
+        b >= 0 ? (calls[b].departureSecs ?? calls[b].arrivalSecs) : null
+    if (boardSecs == null || match.scheduledEpoch == null) return null
+    const a = nearestIndex(calls, alight, b + 1)
+    if (a < 0 || distanceMeters(calls[a], alight) > ALIGHT_MAX_DISTANCE_M)
+        return null
+
+    const midnight = match.scheduledEpoch - boardSecs
+    const scheduledAt = (i: number) => {
+        const secs = calls[i].arrivalSecs ?? calls[i].departureSecs
+        return secs == null ? null : midnight + secs
+    }
+    const alightAt = scheduledAt(a)
+    if (alightAt == null) return null
+
+    // On a loop, the last stop has the same id as the first one, so skip
+    // times before boarding.
+    const byStop = new Map(
+        updates
+            .filter((u) => u.arrivalEpoch >= match.arrivalEpoch)
+            .map((u) => [u.stopId, u])
+    )
+    const boardDelay = match.live
+        ? match.arrivalEpoch - match.scheduledEpoch
+        : 0
+    // For buses that haven't started, the feed says they are early, but buses
+    // wait at timing points. So don't be more early than at boarding.
+    const earliest = alightAt + Math.min(boardDelay, 0)
+    for (let i = a; i > b; i--) {
+        const update = byStop.get(calls[i].stopId)
+        const at = scheduledAt(i)
+        if (update && at != null)
+            return {
+                epoch: Math.max(earliest, alightAt + update.arrivalEpoch - at),
+                live: true,
+            }
+    }
+    return { epoch: alightAt + boardDelay, live: match.live }
+}
+
+// Count by position, not stop number. Adelaide uses 999 for every last stop,
+// and on a loop a bus waiting at the start also shows as 999.
+function stopsAway(
+    calls: TripCall[],
+    boardingSequence: number | null,
+    vehicleSequence: number | null
+): number | null {
+    const b = calls.findIndex((c) => c.stopSequence === boardingSequence)
+    let v = calls.findIndex((c) => c.stopSequence === vehicleSequence)
+    if (b < 0 || v < 0) return null
+    const last = calls.length - 1
+    if (v === last && v > b && calls[0].stopId === calls[last].stopId) v = 0
+    return Math.max(0, b - v)
+}
+
+// Cache per request. Other routes often use the same stops and trips.
 function createEnricher(db: SupabaseClient, nowEpoch: number) {
     const stopCache = new Map<string, Promise<GtfsStop[]>>()
     const arrivalsCache = new Map<string, Promise<StopArrival[]>>()
+    const callsCache = new Map<string, Promise<TripCall[]>>()
     const vehicleCache = new Map<string, Promise<VehiclePosition | null>>()
 
     const stopsFor = (s: RouteStop) => {
@@ -284,7 +346,15 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
         }
         return arrivalsCache.get(stopId)!
     }
-    // Live vehicle for a trip, following its block chain across trip_id changes.
+    const callsFor = (tripId: string) => {
+        if (!callsCache.has(tripId))
+            callsCache.set(
+                tripId,
+                getTripCalls(db, tripId).catch(() => [])
+            )
+        return callsCache.get(tripId)!
+    }
+    // Find the live vehicle. We follow the block because trip_id can change.
     const vehicleFor = (tripId: string) => {
         if (!vehicleCache.has(tripId)) {
             vehicleCache.set(
@@ -297,8 +367,20 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
         return vehicleCache.get(tripId)!
     }
 
-    return async (leg: BusLeg): Promise<BusLeg> => {
+    // Rides are matched one by one, so start loading all stops first.
+    const prefetch = (leg: BusLeg) => {
+        if (leg.path[0])
+            void stopsFor(leg.path[0]).then((stops) =>
+                stops.forEach((s) => arrivalsFor(s.stopId))
+            )
+    }
+
+    const enrich = async (
+        leg: BusLeg,
+        notBefore: number | null
+    ): Promise<BusLeg> => {
         const boarding = leg.path[0]
+        const alighting = leg.path.length > 1 ? leg.path.at(-1)! : null
         if (!boarding) return leg
         const candidates = await stopsFor(boarding)
         if (candidates.length === 0) return leg
@@ -308,7 +390,8 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
                 match: pickArrival(
                     await arrivalsFor(stop.stopId),
                     leg,
-                    nowEpoch
+                    nowEpoch,
+                    notBefore
                 ),
             }))
         )
@@ -321,6 +404,20 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
         const { stop } = best
         const match = best.match.arrival
 
+        const [calls, updates, vehicle] = await Promise.all([
+            callsFor(match.tripId),
+            getTripUpdates(match.tripId),
+            vehicleFor(match.tripId),
+        ])
+        const alight = alighting
+            ? alightingTime(calls, updates, match, alighting)
+            : null
+        // If no get-off time, move Google's arrival as much as the departure.
+        const shifted =
+            leg.arrivalEpoch != null && leg.departureEpoch != null
+                ? leg.arrivalEpoch + match.arrivalEpoch - leg.departureEpoch
+                : null
+
         const enriched: BusLeg = {
             ...leg,
             fromCode: stop.code,
@@ -328,35 +425,33 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
             departureEpoch: match.arrivalEpoch,
             scheduledDepartureEpoch:
                 match.scheduledEpoch ?? leg.scheduledDepartureEpoch,
+            arrivalEpoch: alight?.epoch ?? shifted,
+            arrivalLive: alight?.live ?? false,
             departsIn: minutesFromNow(match.arrivalEpoch, nowEpoch),
             live: match.live,
             delayMin: match.delayMin,
-            // Carried so the vehicle-map sheet can fetch stops/shape on demand.
+            // So the map can load stops and shape later.
             tripId: match.tripId,
         }
 
-        // Live vehicle location, following the block chain across trip_id
-        // changes (bus number can change mid-run).
-        const vehicle = await vehicleFor(match.tripId)
         if (!vehicle) return enriched
-
-        // A stops-away count is only meaningful when the vehicle is on this very
-        // trip (stop_sequence is per-trip); otherwise leave it null.
-        const sameTrip = vehicle.tripId === match.tripId
-        const stopsAway =
-            sameTrip &&
-            match.stopSequence != null &&
-            vehicle.currentStopSequence != null
-                ? Math.max(0, match.stopSequence - vehicle.currentStopSequence)
-                : null
         enriched.vehicle = {
             lat: vehicle.lat,
             lng: vehicle.lng,
-            stopsAway,
+            stopsAway:
+                vehicle.tripId === match.tripId
+                    ? stopsAway(
+                          calls,
+                          match.stopSequence,
+                          vehicle.currentStopSequence
+                      )
+                    : null,
             nearStop: boarding.name,
         }
         return enriched
     }
+
+    return { enrich, prefetch }
 }
 
 export async function POST(request: NextRequest) {
@@ -422,7 +517,7 @@ export async function POST(request: NextRequest) {
 
         const nowEpoch = Math.floor(Date.now() / 1000)
         const db = createPublicClient()
-        const enrich = createEnricher(db, nowEpoch)
+        const { enrich, prefetch } = createEnricher(db, nowEpoch)
 
         const originStop: RouteStop = {
             name: origin.label ?? 'Start',
@@ -437,52 +532,63 @@ export async function POST(request: NextRequest) {
 
         const built = await Promise.all(
             ((data.routes ?? []) as GoogleRoute[]).map(async (route, i) => {
-                // Google Routes API always returns transit journeys as a
-                // single leg (origin→destination), regardless of transfers.
-                // The individual walk/ride segments live inside steps[].
+                // Google gives one leg. Walks and rides are in its steps.
                 const steps = route.legs?.[0]?.steps ?? []
-                const legs = await Promise.all(
-                    buildLegs(steps, nowEpoch, destStop.name).map((leg) =>
-                        leg.type === 'bus' ? enrich(leg) : leg
-                    )
-                )
+                const planned = buildLegs(steps, nowEpoch, destStop.name)
+                for (const leg of planned) if (leg.type === 'bus') prefetch(leg)
+
+                // The next ride must leave after this ride arrives + walk time.
+                const legs: JourneyLeg[] = []
+                let readyAt: number | null = null
+                for (const leg of planned) {
+                    if (leg.type === 'walk') {
+                        legs.push(leg)
+                        if (readyAt != null) readyAt += leg.minutes * 60
+                        continue
+                    }
+                    const ride = await enrich(leg, readyAt)
+                    legs.push(ride)
+                    readyAt =
+                        ride.arrivalEpoch != null
+                            ? ride.arrivalEpoch + TRANSFER_BUFFER_S
+                            : null
+                }
 
                 const rides = legs.filter((l): l is BusLeg => l.type === 'bus')
-                const transitSteps = steps.filter(
-                    (s) => s.travelMode === 'TRANSIT'
-                )
-                // Arrival stays Google's timetable, shifted by the last ride's
-                // live delay when we know it (lateness tends to carry through),
-                // plus the walk from the last stop to the destination.
-                const lastArrival = isoToEpoch(
-                    transitSteps[transitSteps.length - 1]?.transitDetails
-                        ?.stopDetails?.arrivalTime
-                )
-                const lastDelay = rides[rides.length - 1]?.delayMin ?? 0
-                const finalWalkMin = legs
-                    .slice(legs.findLastIndex((l) => l.type === 'bus') + 1)
-                    .reduce((sum, l) => sum + l.minutes, 0)
+                const firstRide = legs.findIndex((l) => l.type === 'bus')
+                const lastRide = legs.findLastIndex((l) => l.type === 'bus')
+                const walkMin = (from: number, to?: number) =>
+                    legs.slice(from, to).reduce((sum, l) => sum + l.minutes, 0)
+                const lastArrival = rides.at(-1)?.arrivalEpoch
                 const arriveEpoch =
                     lastArrival != null
-                        ? lastArrival + (lastDelay + finalWalkMin) * 60
+                        ? lastArrival + walkMin(lastRide + 1) * 60
+                        : null
+                const firstDeparture = rides[0]?.departureEpoch
+                const leaveEpoch =
+                    firstDeparture != null
+                        ? firstDeparture - walkMin(0, firstRide) * 60
                         : null
 
                 const journey: Journey = {
                     id: `route-${i}`,
                     origin: originStop,
                     destination: destStop,
-                    departAt: formatClock(rides[0]?.departureEpoch ?? null),
+                    departAt: formatClock(firstDeparture ?? null),
                     arriveAt: formatClock(arriveEpoch),
-                    minutes: Math.round(durationToSeconds(route.duration) / 60),
+                    minutes:
+                        arriveEpoch != null && leaveEpoch != null
+                            ? Math.round((arriveEpoch - leaveEpoch) / 60)
+                            : Math.round(
+                                  durationToSeconds(route.duration) / 60
+                              ),
                     legs,
                 }
-                // Keep the sort key alongside; Google's order isn't arrival-time
-                // sorted, and swapping in our GTFS times shifts it further.
                 return { journey, arriveEpoch }
             })
         )
 
-        // Soonest arrival first; unknown arrival times sink to the bottom.
+        // Earliest arrival first. Unknown times go last.
         built.sort(
             (a, b) => (a.arriveEpoch ?? Infinity) - (b.arriveEpoch ?? Infinity)
         )

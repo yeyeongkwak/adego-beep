@@ -133,12 +133,18 @@ export async function getLiveArrivals(
     return { arrivals, feedTimestamp: snapshot.feedTimestamp }
 }
 
-// --- VehiclePositions ------------------------------------------------------
-/* Live vehicle locations, indexed by tripId. Same fetch/cache pattern as
- TripUpdates. A vehicle reports the trip it's currently running; to follow it
- across a bus-number change mid-journey, the caller resolves the block chain
- (see the directions route) and looks up each trip in that block here.
-*/
+// Usually only the next few stops.
+export async function getTripUpdates(
+    tripId: string
+): Promise<StopArrivalUpdate[]> {
+    try {
+        return (await getFeedSnapshot()).byTripId.get(tripId) ?? []
+    } catch {
+        return []
+    }
+}
+
+// --- VehiclePositions (works the same way as above) ------------------------
 
 const VEHICLE_FEED_URL =
     process.env.GTFS_RT_VEHICLE_POSITIONS_URL ??

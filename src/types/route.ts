@@ -108,23 +108,26 @@ export type BusLeg = {
     from: string
     fromCode: string | null
     to: string
-    // The GTFS trip this ride matched — used to fetch stops/shape on demand
-    // when the user opens the vehicle map (see /api/trip-map).
+    // The GTFS trip for this ride. We use it to load stops and shape when the
+    // user opens the map.
     tripId: string | null
-    path: RouteStop[] // stops loaded on-demand; before load: Google's 2-point boarding→alighting
-    shape: LatLng[] // GTFS road shape, filled on demand (vehicle map); else empty
-    polyline: string | null // Google's encoded road line for just this ride
+    path: RouteStop[] // loaded later. Before that, only Google's start and end
+    shape: LatLng[] // GTFS road shape, loaded with the map. Empty before
+    polyline: string | null // Google's road line for this ride
     minutes: number
     departsIn: number
-    // Absolute departure (epoch seconds) from the boarding stop, when known.
+    // Departure time (epoch seconds), if we know it.
     departureEpoch?: number | null
-    // Timetable departure: unlike departureEpoch it doesn't move with live
-    // delays, so it (with tripId) identifies this exact ride.
+    // Timetable departure. It doesn't change when the bus is late, so with
+    // tripId it tells which ride this is.
     scheduledDepartureEpoch: number | null
+    // Optional because old saved journeys don't have these.
+    arrivalEpoch?: number | null
+    arrivalLive?: boolean
     live: boolean
-    delayMin: number | null // + late, - early, null when schedule-only
-    // stopsAway is null when the vehicle is still on an earlier block trip
-    // (per-trip stop_sequence isn't comparable) — show the live position only.
+    delayMin: number | null // + late, - early, null if no live data
+    // stopsAway is null if the vehicle is still on an earlier trip in the
+    // block. Then we only show where it is.
     vehicle: (LatLng & { stopsAway: number | null; nearStop: string }) | null
 }
 
@@ -153,8 +156,8 @@ export type PlacePrediction = {
 
 export type TripTime = { mode: 'depart' | 'arrive'; at: Date } | null
 
-// A chosen point for a route endpoint. null means "nothing selected".
-// Current location resolves to a real coord (label 'Current location').
+// The point the user picked. null means nothing is picked. Current location
+// also becomes a real lat/lng.
 export type PickedLocation = Pick<Favourite, 'label' | 'lat' | 'lng'> | null
 
 export type LatLngLiteral = { latitude: number; longitude: number }
