@@ -64,9 +64,29 @@ function weekdayColumn(date: string): WeekdayColumn {
     return WEEKDAY_COLUMNS[new Date(`${date}T00:00:00Z`).getUTCDay()]
 }
 
+// Every stop lookup needs the same two dates' services; a short TTL still
+// picks up a fresh GTFS import within minutes.
+const SERVICE_TTL_MS = 10 * 60_000
+const serviceCache = new Map<
+    string,
+    { at: number; ids: Promise<Set<string>> }
+>()
+
+function activeServiceIds(
+    db: SupabaseClient,
+    date: string
+): Promise<Set<string>> {
+    const hit = serviceCache.get(date)
+    if (hit && Date.now() - hit.at < SERVICE_TTL_MS) return hit.ids
+    const ids = loadActiveServiceIds(db, date)
+    serviceCache.set(date, { at: Date.now(), ids })
+    ids.catch(() => serviceCache.delete(date))
+    return ids
+}
+
 // service_ids running on a date: weekly calendar pattern, then calendar_dates
 // exceptions (exception_type 1 adds service, 2 removes it).
-async function activeServiceIds(
+async function loadActiveServiceIds(
     db: SupabaseClient,
     date: string
 ): Promise<Set<string>> {

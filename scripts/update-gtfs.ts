@@ -152,6 +152,8 @@ async function main() {
             stop_lat: row.stop_lat ? Number(row.stop_lat) : null,
             stop_lon: row.stop_lon ? Number(row.stop_lon) : null,
             route_type: null as number | null,
+            location_type: row.location_type ? Number(row.location_type) : null,
+            parent_station: emptyToNull(row.parent_station),
         }))
         await bulkInsert(supabase, 'gtfs_staging_stops', stops)
 

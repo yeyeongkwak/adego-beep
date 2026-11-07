@@ -40,6 +40,7 @@ const FIELD_MASK = [
 // GTFS matching tuning.
 const STOP_SEARCH_DEG = 0.0015 // ~165m box around Google's stop
 const STOP_MAX_DISTANCE_M = 120
+const STOP_CANDIDATES = 4
 const ARRIVALS_WINDOW_MINUTES = 180
 const ARRIVALS_LIMIT = 80
 const MATCH_TOLERANCE_S = 15 * 60
@@ -179,72 +180,94 @@ function buildLegs(
 
 type GtfsStop = { stopId: string; code: string | null }
 
-// Google's boarding stop -> our nearest GTFS stop (names usually match too,
-// since Google ingests Adelaide Metro's feed; name breaks distance ties).
-async function findGtfsStop(
+// Google's boarding stop -> nearby GTFS platforms, best guess first. Google
+// names a station ("Rundle Mall") while each direction boards at its own
+// platform ("Rundle Mall Tram Stop" x2), so the caller checks several
+// against the timetable instead of trusting the single nearest.
+async function findGtfsStops(
     db: SupabaseClient,
     stop: RouteStop
-): Promise<GtfsStop | null> {
+): Promise<GtfsStop[]> {
+    // `*` so this keeps working on a DB that predates location_type (009).
     const { data, error } = await db
         .from('gtfs_stops')
-        .select('stop_id, stop_code, stop_name, stop_lat, stop_lon')
+        .select('*')
         .gte('stop_lat', stop.lat - STOP_SEARCH_DEG)
         .lte('stop_lat', stop.lat + STOP_SEARCH_DEG)
         .gte('stop_lon', stop.lng - STOP_SEARCH_DEG)
         .lte('stop_lon', stop.lng + STOP_SEARCH_DEG)
-    if (error || !data?.length) return null
+    if (error || !data?.length) return []
 
-    let best: { row: (typeof data)[number]; score: number } | null = null
+    const scored: { stop: GtfsStop; score: number }[] = []
     for (const row of data) {
         if (row.stop_lat == null || row.stop_lon == null) continue
+        // Stations, entrances etc. have no stop_times; only 0/empty boards.
+        if (row.location_type != null && row.location_type !== 0) continue
         const d = distanceMeters(stop, { lat: row.stop_lat, lng: row.stop_lon })
-        if (d > STOP_MAX_DISTANCE_M) continue
-        const score = row.stop_name === stop.name ? d - 1000 : d
-        if (!best || score < best.score) best = { row, score }
+        const sameName = (row.stop_name ?? '').startsWith(stop.name)
+        // Google's pin can sit a bay or two off at interchanges; a matching
+        // name is trusted anywhere in the search box.
+        if (d > STOP_MAX_DISTANCE_M && !sameName) continue
+        const score = sameName ? d - 1000 : d
+        scored.push({
+            stop: { stopId: row.stop_id, code: row.stop_code },
+            score,
+        })
     }
-    return best ? { stopId: best.row.stop_id, code: best.row.stop_code } : null
+    return scored
+        .sort((a, b) => a.score - b.score)
+        .slice(0, STOP_CANDIDATES)
+        .map((s) => s.stop)
 }
 
-const normRoute = (r: string) => r.trim().toUpperCase()
+const norm = (r: string) => r.trim().toUpperCase()
 
-// The trip on the same line whose timetable time is closest to Google's.
-// Compare against the scheduled time so a late bus still matches its own
-// trip rather than the next one.
+type ArrivalMatch = { arrival: StopArrival; sameHeadsign: boolean; gap: number }
+
+// Right direction first, then closest time. The headsign separates the two
+// directions of a line (and their opposite-side platforms); it only falls
+// back to time alone when Google spells the headsign differently from GTFS.
+const isBetter = (a: ArrivalMatch, b: ArrivalMatch | null) =>
+    !b || (a.sameHeadsign !== b.sameHeadsign ? a.sameHeadsign : a.gap < b.gap)
+
+// The trip on the same line whose time is closest to Google's. Google's time
+// may be its own realtime estimate or the timetable, so both of ours count.
 function pickArrival(
     arrivals: StopArrival[],
     leg: BusLeg,
     nowEpoch: number
-): StopArrival | null {
-    const sameLine = arrivals.filter(
-        (a) => normRoute(a.route) === normRoute(leg.route)
-    )
-    if (sameLine.length === 0) return null
+): ArrivalMatch | null {
     const target = leg.departureEpoch ?? nowEpoch
-    let best: StopArrival | null = null
-    let bestGap = Infinity
-    for (const a of sameLine) {
-        const gap = Math.abs((a.scheduledEpoch ?? a.arrivalEpoch) - target)
-        if (gap < bestGap) {
-            best = a
-            bestGap = gap
+    let best: ArrivalMatch | null = null
+    for (const a of arrivals) {
+        if (norm(a.route) !== norm(leg.route)) continue
+        const gap = Math.min(
+            Math.abs(a.arrivalEpoch - target),
+            Math.abs((a.scheduledEpoch ?? a.arrivalEpoch) - target)
+        )
+        // Without a Google time there's nothing to check against, so the
+        // trip closest to now (possibly one that just left) is the best guess.
+        if (leg.departureEpoch != null && gap > MATCH_TOLERANCE_S) continue
+        const match = {
+            arrival: a,
+            sameHeadsign: norm(a.destination) === norm(leg.headsign),
+            gap,
         }
+        if (isBetter(match, best)) best = match
     }
-    // Without a Google time there's nothing to check against, so the trip
-    // closest to now (possibly one that just left) is the best guess.
-    if (leg.departureEpoch != null && bestGap > MATCH_TOLERANCE_S) return null
     return best
 }
 
 // Swap Google's ride times for ours. Lookups are memoised per request because
 // alternative routes usually share boarding stops.
 function createEnricher(db: SupabaseClient, nowEpoch: number) {
-    const stopCache = new Map<string, Promise<GtfsStop | null>>()
+    const stopCache = new Map<string, Promise<GtfsStop[]>>()
     const arrivalsCache = new Map<string, Promise<StopArrival[]>>()
     const vehicleCache = new Map<string, Promise<VehiclePosition | null>>()
 
-    const stopFor = (s: RouteStop) => {
+    const stopsFor = (s: RouteStop) => {
         const key = `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`
-        if (!stopCache.has(key)) stopCache.set(key, findGtfsStop(db, s))
+        if (!stopCache.has(key)) stopCache.set(key, findGtfsStops(db, s))
         return stopCache.get(key)!
     }
     const arrivalsFor = (stopId: string) => {
@@ -277,10 +300,26 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
     return async (leg: BusLeg): Promise<BusLeg> => {
         const boarding = leg.path[0]
         if (!boarding) return leg
-        const stop = await stopFor(boarding)
-        if (!stop) return leg
-        const match = pickArrival(await arrivalsFor(stop.stopId), leg, nowEpoch)
-        if (!match) return { ...leg, fromCode: stop.code }
+        const candidates = await stopsFor(boarding)
+        if (candidates.length === 0) return leg
+        const matches = await Promise.all(
+            candidates.map(async (stop) => ({
+                stop,
+                match: pickArrival(
+                    await arrivalsFor(stop.stopId),
+                    leg,
+                    nowEpoch
+                ),
+            }))
+        )
+        let best: { stop: GtfsStop; match: ArrivalMatch } | null = null
+        for (const { stop, match } of matches) {
+            if (match && isBetter(match, best?.match ?? null))
+                best = { stop, match }
+        }
+        if (!best) return { ...leg, fromCode: candidates[0].code }
+        const { stop } = best
+        const match = best.match.arrival
 
         const enriched: BusLeg = {
             ...leg,
