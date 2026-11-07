@@ -4,40 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { LatLng, RouteStop } from '@/types/route'
 import { getBlockTripIds } from '@/lib/arrivals/block'
 import { findVehicleForTrips } from '@/lib/arrivals/realtime'
+import { getTripStops } from '@/lib/tripStops'
 
 /* On-demand stop list + road-shape for a single trip.
  Called when the user taps the GPS button on a journey card — lazily fetching
  this data (rather than in /api/directions) means we only query what the user
  actually opens, not every vehicle-tracked leg in the result list.
 */
-
-async function getTripStops(
-    db: SupabaseClient,
-    tripId: string
-): Promise<RouteStop[]> {
-    const times = await db
-        .from('gtfs_stop_times')
-        .select('stop_id, stop_sequence')
-        .eq('trip_id', tripId)
-        .order('stop_sequence', { ascending: true })
-    if (times.error || !times.data?.length) return []
-
-    const stopIds = [...new Set(times.data.map((r) => r.stop_id as string))]
-    const stops = await db
-        .from('gtfs_stops')
-        .select('stop_id, stop_name, stop_lat, stop_lon')
-        .in('stop_id', stopIds)
-    if (stops.error || !stops.data) return []
-
-    const byId = new Map(stops.data.map((s) => [s.stop_id, s]))
-    return times.data
-        .map((t) => {
-            const s = byId.get(t.stop_id)
-            if (!s || s.stop_lat == null || s.stop_lon == null) return null
-            return { name: s.stop_name ?? '', lat: s.stop_lat, lng: s.stop_lon }
-        })
-        .filter((s): s is RouteStop => s != null)
-}
 
 async function getTripShape(
     db: SupabaseClient,

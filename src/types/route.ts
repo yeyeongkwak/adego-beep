@@ -114,6 +114,9 @@ export type BusLeg = {
     departsIn: number
     // Absolute departure (epoch seconds) from the boarding stop, when known.
     departureEpoch?: number | null
+    // Timetable departure: unlike departureEpoch it doesn't move with live
+    // delays, so it (with tripId) identifies this exact ride.
+    scheduledDepartureEpoch: number | null
     live: boolean
     delayMin: number | null // + late, - early, null when schedule-only
     // stopsAway is null when the vehicle is still on an earlier block trip

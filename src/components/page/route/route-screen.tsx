@@ -1,8 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
     ArrowUpDown,
     ChevronRight,
@@ -48,11 +47,49 @@ const JourneyCard = ({
     const far = departsIn > 60
     const [clock, meridiem] = journey.departAt.split(/\s+/)
     const hint = bus && !far && catchHint(walkMin, departsIn)
+
+    // Save on tap, then open /route/<id>: the id is a lasting link, unlike
+    // journey.id ("route-0"), which is just this result list's position.
+    const router = useRouter()
+    const [opening, setOpening] = useState(false)
+    const [openFailed, setOpenFailed] = useState(false)
+    const open = async () => {
+        if (opening) return
+        setOpening(true)
+        setOpenFailed(false)
+        try {
+            const res = await fetch('/api/journeys', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(journey),
+            })
+            if (!res.ok) throw new Error(String(res.status))
+            const { id } = (await res.json()) as { id: string }
+            router.push(`/route/${id}`)
+        } catch {
+            setOpening(false)
+            setOpenFailed(true)
+        }
+    }
+
     return (
         <>
-            <Link
-                href={`/route/${journey.id}`}
-                className="block rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] ring-1 ring-zinc-100 dark:bg-zinc-900 dark:ring-zinc-800"
+            {/* Not a <Link>: the URL only exists once the save returns. And not
+            a <button>: the card holds its own track-bus button. */}
+            <div
+                role="link"
+                tabIndex={0}
+                aria-busy={opening}
+                onClick={open}
+                onKeyDown={(e) => {
+                    // Ignore Enter bubbling up from the inner button.
+                    if (e.key === 'Enter' && e.target === e.currentTarget)
+                        open()
+                }}
+                className={cn(
+                    'block cursor-pointer rounded-3xl bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.04)] ring-1 ring-zinc-100 transition-opacity dark:bg-zinc-900 dark:ring-zinc-800',
+                    opening && 'opacity-60'
+                )}
             >
                 <div className="flex flex-col gap-4 p-5">
                     <div className="flex items-start justify-between gap-3">
@@ -147,8 +184,8 @@ const JourneyCard = ({
                                             <button
                                                 type="button"
                                                 aria-label={`Track ${leg.route} on the map`}
-                                                // Inside the card's Link — stop it
-                                                // navigating and open the map instead.
+                                                // Inside the tappable card — stop it
+                                                // opening and show the map instead.
                                                 onClick={(e) => {
                                                     e.preventDefault()
                                                     e.stopPropagation()
@@ -191,8 +228,13 @@ const JourneyCard = ({
                             </div>
                         </div>
                     )}
+                    {openFailed && (
+                        <p role="alert" className="text-sm text-alert">
+                            Couldn&apos;t open this route. Tap to try again.
+                        </p>
+                    )}
                 </div>
-            </Link>
+            </div>
 
             <VehicleMapSheet
                 open={mapLeg != null}

@@ -122,6 +122,7 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
         tripId: null, // filled by the enricher once matched to a GTFS trip
         minutes: Math.round(durationToSeconds(step.staticDuration) / 60),
         departureEpoch,
+        scheduledDepartureEpoch: departureEpoch,
         departsIn:
             departureEpoch != null
                 ? minutesFromNow(departureEpoch, nowEpoch)
@@ -286,6 +287,8 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
             fromCode: stop.code,
             color: match.color ?? leg.color,
             departureEpoch: match.arrivalEpoch,
+            scheduledDepartureEpoch:
+                match.scheduledEpoch ?? leg.scheduledDepartureEpoch,
             departsIn: minutesFromNow(match.arrivalEpoch, nowEpoch),
             live: match.live,
             delayMin: match.delayMin,
