@@ -96,6 +96,18 @@ export type LiveArrivalsResult = {
     feedTimestamp: number | null
 }
 
+// The feed drops stops the bus has passed. If the first stop is still there,
+// the bus hasn't left. (On a loop the first stop comes as 999.)
+function hasStarted(trip: StopArrivalUpdate[]): boolean {
+    const first = trip.reduce<StopArrivalUpdate | null>(
+        (a, u) => (!a || u.arrivalEpoch < a.arrivalEpoch ? u : a),
+        null
+    )
+    if (!first) return true
+    if (first.stopSequence === 1) return false
+    return !(first.stopSequence === 999 && trip.length > 1)
+}
+
 export async function getLiveArrivals(
     stopId: string,
     lowerEpoch: number,
@@ -114,9 +126,8 @@ export async function getLiveArrivals(
                 u.arrivalEpoch >= lowerEpoch && u.arrivalEpoch <= windowEndEpoch
         )
         .map((u): LiveArrival => {
-            const others = (snapshot.byTripId.get(u.tripId) ?? []).filter(
-                (o) => o.stopId !== u.stopId
-            )
+            const trip = snapshot.byTripId.get(u.tripId) ?? []
+            const others = trip.filter((o) => o.stopId !== u.stopId)
             return {
                 tripId: u.tripId,
                 routeId: u.routeId,
@@ -127,6 +138,7 @@ export async function getLiveArrivals(
                     : others.length > 0
                       ? 'last'
                       : null,
+                started: hasStarted(trip),
             }
         })
 

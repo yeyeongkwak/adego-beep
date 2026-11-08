@@ -57,6 +57,7 @@ export type LiveArrival = {
     stopSequence: number | null
     arrivalEpoch: number
     visit: 'first' | 'last' | null
+    started: boolean
 }
 
 // What we send to the app (timetable + live).

@@ -73,7 +73,10 @@ function pairLive(
                   ? calls[calls.length - 1]
                   : latestBefore(calls, update.arrivalEpoch)
         if (call) {
-            call.arrivalEpoch = update.arrivalEpoch
+            // Before a bus starts, the feed often says it's early. It isn't.
+            call.arrivalEpoch = update.started
+                ? update.arrivalEpoch
+                : Math.max(update.arrivalEpoch, call.scheduledEpoch!)
             call.routeId = update.routeId
             call.live = true
         } else {
