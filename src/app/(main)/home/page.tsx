@@ -1,4 +1,4 @@
-import { createPublicClient } from '@/lib/supabase'
+import { createSecretClient } from '@/lib/supabase'
 import { StatusPage } from '../../_status/status-page'
 import { HomeScreen } from '@/components/page/home/home-screen'
 
@@ -8,7 +8,7 @@ import { HomeScreen } from '@/components/page/home/home-screen'
 const STALE_AFTER_MS = 30 * 60 * 1000
 
 async function isGtfsUpdating() {
-    const supabase = createPublicClient()
+    const supabase = createSecretClient()
 
     const { data } = await supabase
         .from('gtfs_update_status')
