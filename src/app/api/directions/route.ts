@@ -226,7 +226,7 @@ const isBetter = (a: ArrivalMatch, b: ArrivalMatch | null) =>
     !b || (a.sameHeadsign !== b.sameHeadsign ? a.sameHeadsign : a.gap < b.gap)
 
 // Google's time can be live or timetable, so we check both. If the rider
-// can't get to the stop in time (notBefore), take the next bus.
+// can't make it or the bus is cancelled, take the next bus.
 function pickArrival(
     arrivals: StopArrival[],
     leg: BusLeg,
@@ -234,23 +234,39 @@ function pickArrival(
     notBefore: number | null
 ): ArrivalMatch | null {
     const planned = leg.departureEpoch ?? nowEpoch
+    const sameLine = (a: StopArrival) => norm(a.route) === norm(leg.route)
+    const sameHeadsign = (a: StopArrival) =>
+        norm(a.destination) === norm(leg.headsign)
+    const gapTo = (a: StopArrival, t: number) =>
+        Math.min(
+            Math.abs(a.arrivalEpoch - t),
+            Math.abs((a.scheduledEpoch ?? a.arrivalEpoch) - t)
+        )
     const missed = notBefore != null && planned < notBefore
+    const cancelled =
+        leg.departureEpoch != null &&
+        arrivals.some(
+            (a) =>
+                a.cancelled &&
+                sameLine(a) &&
+                sameHeadsign(a) &&
+                gapTo(a, planned) <= MATCH_TOLERANCE_S
+        )
     const target = missed ? notBefore : planned
     let best: ArrivalMatch | null = null
     for (const a of arrivals) {
-        if (norm(a.route) !== norm(leg.route)) continue
+        if (a.cancelled || !sameLine(a)) continue
         if (notBefore != null && a.arrivalEpoch < notBefore) continue
-        const gap = Math.min(
-            Math.abs(a.arrivalEpoch - target),
-            Math.abs((a.scheduledEpoch ?? a.arrivalEpoch) - target)
+        if (cancelled && a.arrivalEpoch < planned) continue
+        const gap = gapTo(a, target)
+        if (
+            leg.departureEpoch != null &&
+            !missed &&
+            !cancelled &&
+            gap > MATCH_TOLERANCE_S
         )
-        if (leg.departureEpoch != null && !missed && gap > MATCH_TOLERANCE_S)
             continue
-        const match = {
-            arrival: a,
-            sameHeadsign: norm(a.destination) === norm(leg.headsign),
-            gap,
-        }
+        const match = { arrival: a, sameHeadsign: sameHeadsign(a), gap }
         if (isBetter(match, best)) best = match
     }
     return best
@@ -592,7 +608,20 @@ export async function POST(request: NextRequest) {
         built.sort(
             (a, b) => (a.arriveEpoch ?? Infinity) - (b.arriveEpoch ?? Infinity)
         )
-        const journeys: Journey[] = built.map((b) => b.journey)
+        // Two options can end up on the same bus. Keep one.
+        const seen = new Set<string>()
+        const journeys: Journey[] = built
+            .map((b) => b.journey)
+            .filter((j) => {
+                const rides = j.legs.filter(
+                    (l): l is BusLeg => l.type === 'bus'
+                )
+                if (rides.some((r) => !r.tripId)) return true
+                const key = rides
+                    .map((r) => `${r.tripId}@${r.scheduledDepartureEpoch}`)
+                    .join('|')
+                return !seen.has(key) && seen.add(key)
+            })
 
         return NextResponse.json({ journeys })
     } catch (error) {

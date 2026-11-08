@@ -35,6 +35,7 @@ export async function getStopArrivals(
         db,
         scheduled,
         live.arrivals,
+        live.notComing,
         nowEpoch,
         lowerEpoch,
         limit

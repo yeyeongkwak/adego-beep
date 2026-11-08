@@ -15,6 +15,13 @@ const FEED_URL =
 
 const FEED_TTL_MS = 20_000
 
+const TRIP_CANCELED =
+    GtfsRealtimeBindings.transit_realtime.TripDescriptor.ScheduleRelationship
+        .CANCELED
+const STOP_SKIPPED =
+    GtfsRealtimeBindings.transit_realtime.TripUpdate.StopTimeUpdate
+        .ScheduleRelationship.SKIPPED
+
 function toNumber(value: unknown): number | null {
     if (value == null) return null
     if (typeof value === 'number') return value
@@ -41,13 +48,25 @@ async function loadFeed(): Promise<FeedSnapshot> {
 
     const byStopId = new Map<string, StopArrivalUpdate[]>()
     const byTripId = new Map<string, StopArrivalUpdate[]>()
+    const cancelledTrips = new Set<string>()
+    const skippedByStopId = new Map<string, Set<string>>()
     for (const entity of feed.entity) {
         const tripUpdate = entity.tripUpdate
         const tripId = tripUpdate?.trip?.tripId
         if (!tripUpdate || !tripId) continue
+        if (tripUpdate.trip?.scheduleRelationship === TRIP_CANCELED) {
+            cancelledTrips.add(tripId)
+            continue
+        }
         const tripUpdates: StopArrivalUpdate[] = []
         for (const update of tripUpdate.stopTimeUpdate ?? []) {
             const stopId = update.stopId
+            if (stopId && update.scheduleRelationship === STOP_SKIPPED) {
+                const skipped = skippedByStopId.get(stopId)
+                if (skipped) skipped.add(tripId)
+                else skippedByStopId.set(stopId, new Set([tripId]))
+                continue
+            }
             const arrivalEpoch = toNumber(update.arrival?.time)
             if (!stopId || arrivalEpoch == null) continue
             const entry: StopArrivalUpdate = {
@@ -70,6 +89,8 @@ async function loadFeed(): Promise<FeedSnapshot> {
         feedTimestamp: toNumber(feed.header?.timestamp),
         byStopId,
         byTripId,
+        cancelledTrips,
+        skippedByStopId,
     }
 }
 
@@ -94,6 +115,7 @@ export async function getFeedSnapshot(): Promise<FeedSnapshot> {
 export type LiveArrivalsResult = {
     arrivals: LiveArrival[]
     feedTimestamp: number | null
+    notComing: Set<string>
 }
 
 // The feed drops stops the bus has passed. If the first stop is still there,
@@ -117,7 +139,7 @@ export async function getLiveArrivals(
     try {
         snapshot = await getFeedSnapshot()
     } catch {
-        return { arrivals: [], feedTimestamp: null }
+        return { arrivals: [], feedTimestamp: null, notComing: new Set() }
     }
 
     const arrivals = (snapshot.byStopId.get(stopId) ?? [])
@@ -142,7 +164,11 @@ export async function getLiveArrivals(
             }
         })
 
-    return { arrivals, feedTimestamp: snapshot.feedTimestamp }
+    const notComing = new Set([
+        ...snapshot.cancelledTrips,
+        ...(snapshot.skippedByStopId.get(stopId) ?? []),
+    ])
+    return { arrivals, feedTimestamp: snapshot.feedTimestamp, notComing }
 }
 
 // Usually only the next few stops.

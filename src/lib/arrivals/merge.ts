@@ -97,6 +97,7 @@ export async function mergeArrivals(
     db: SupabaseClient,
     scheduled: ScheduledCall[],
     live: LiveArrival[],
+    notComing: Set<string>,
     nowEpoch: number,
     lowerEpoch: number,
     limit: number
@@ -168,6 +169,7 @@ export async function mergeArrivals(
                 m.live && m.scheduledEpoch != null
                     ? Math.round((m.arrivalEpoch - m.scheduledEpoch) / 60)
                     : null,
+            cancelled: notComing.has(m.tripId),
         }
     })
 }

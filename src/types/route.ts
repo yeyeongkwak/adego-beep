@@ -20,6 +20,8 @@ export type FeedSnapshot = {
     feedTimestamp: number | null
     byStopId: Map<string, StopArrivalUpdate[]>
     byTripId: Map<string, StopArrivalUpdate[]>
+    cancelledTrips: Set<string>
+    skippedByStopId: Map<string, Set<string>>
 }
 
 // Where one vehicle is now.
@@ -75,6 +77,8 @@ export type StopArrival = {
     scheduledEpoch: number | null
     // Minutes late (+) or early (-). null if not live or no timetable time.
     delayMin: number | null
+    // Cancelled, or skips this stop.
+    cancelled: boolean
 }
 
 export type MergedRow = {

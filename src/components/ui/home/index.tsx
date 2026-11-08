@@ -204,10 +204,16 @@ export const StopArrivalsPanel = ({
                                 {arrival.destination}
                             </p>
                             <div className="flex flex-col items-end">
-                                <span className={`text-base font-bold`}>
+                                <span
+                                    className={`text-base font-bold ${arrival.cancelled ? 'text-zinc-400 line-through dark:text-zinc-500' : ''}`}
+                                >
                                     {formatArrival(arrival.minutes)}
                                 </span>
-                                {arrival.live ? (
+                                {arrival.cancelled ? (
+                                    <span className="text-[10px] font-medium text-alert">
+                                        Cancelled
+                                    </span>
+                                ) : arrival.live ? (
                                     <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                                         <span className="relative flex size-1.5">
                                             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
