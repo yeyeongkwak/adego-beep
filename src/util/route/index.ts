@@ -1,7 +1,7 @@
 import { Check, TriangleAlert, Zap } from 'lucide-react'
 import { BusLeg } from '@/types/route'
 
-// Can you make the bus? Compares the walk to the stop with the countdown.
+// Can you make the bus? Compare the walk time with the countdown.
 export function catchHint(walkMin: number, departsIn: number) {
     const slack = departsIn - walkMin
     if (slack >= 2)
@@ -25,15 +25,14 @@ export function catchHint(walkMin: number, departsIn: number) {
     }
 }
 
-// Delay only means something with realtime data; schedule-only rows say so instead.
-export function delayStatus(leg: BusLeg) {
+// Only live data has a delay.
+export function delayStatus(leg: Pick<BusLeg, 'live' | 'delayMin'>) {
     if (!leg.live)
         return {
             label: 'Scheduled',
             className: 'text-zinc-500 dark:text-zinc-400',
         }
-    // Live prediction but no timetable time to compare against: we know when
-    // it's coming, not whether that's late, so don't claim "On time".
+    // Live, but no timetable time to compare. Don't say "On time".
     if (leg.delayMin == null)
         return {
             label: 'Live',

@@ -11,10 +11,19 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type { BusLeg, Journey, LatLng, WalkLeg } from '@/types/route'
+import type {
+    BusLeg,
+    Journey,
+    LatLng,
+    StopArrival,
+    WalkLeg,
+} from '@/types/route'
 import { RouteMap } from './route-map'
 import { useWatchedLocation } from '@/hooks/useGeolocation'
+import { useRideStatuses } from '@/hooks/useRideStatus'
 import { decodePolyline } from '@/util/map/polyline'
+import { formatArrival } from '@/util/arrival'
+import { delayStatus } from '@/util/route'
 import { ModeIcon } from './common'
 
 const RouteBadge = ({ leg }: { leg: BusLeg }) => (
@@ -26,8 +35,7 @@ const RouteBadge = ({ leg }: { leg: BusLeg }) => (
     </span>
 )
 
-// Where a walk starts and ends: the previous ride's last stop (or the
-// origin) to the next ride's first stop (or the destination).
+// A walk goes from the last stop (or origin) to the next stop (or destination).
 function walkPoints(journey: Journey, i: number, walk: WalkLeg): LatLng[] {
     const prev = journey.legs[i - 1]
     const next = journey.legs[i + 1]
@@ -44,7 +52,7 @@ const ridePoints = (bus: BusLeg): LatLng[] => [
     ...(bus.polyline ? decodePolyline(bus.polyline) : []),
 ]
 
-// Tapping a step frames it on the map (like Google Maps directions).
+// Tap a step to show it on the map.
 const FocusButton = ({
     onFocus,
     label,
@@ -64,12 +72,11 @@ const FocusButton = ({
     </button>
 )
 
-/* The timeline is one continuous rail down the left, Google Maps style:
-dotted grey while walking, solid in the line's colour while riding. Each step
-draws the rail above and below its node, so consecutive steps join up. */
+// One line down the left: dotted for walking, solid for riding. Each step
+// draws the line above and below its dot, so the steps join up.
 type Rail = { style: 'dotted' | 'solid'; color: string } | null
 
-// zinc-400: zinc-300 dots vanish against white at 2px.
+// zinc-300 dots are too light on white.
 const WALK_RAIL: Rail = { style: 'dotted', color: '#a1a1aa' }
 const rideRail = (leg: BusLeg): Rail => ({
     style: 'solid',
@@ -90,7 +97,7 @@ const RailLine = ({ rail, className }: { rail: Rail; className: string }) =>
         />
     )
 
-// Node centre sits 16px down, level with the first (24px-tall) text line.
+// The dot sits 16px down, in line with the first text line.
 const Step = ({
     node,
     above,
@@ -160,19 +167,34 @@ const Sub = ({ children }: { children: React.ReactNode }) => (
     </p>
 )
 
-// Open, the panel covers the bottom half of the map; closed, it slides fully
-// away and a "Show route details" pill (about this tall, plus margin) brings
-// it back. The map frames around whichever is showing.
+const RideStatus = ({ status }: { status: StopArrival }) => {
+    if (status.cancelled)
+        return (
+            <p className="mt-0.5 text-[13px] font-semibold text-alert">
+                Cancelled
+            </p>
+        )
+    const { label, className } = delayStatus(status)
+    const when =
+        status.minutes <= 1 ? 'now' : `in ${formatArrival(status.minutes)}`
+    return (
+        <p className="mt-0.5 text-[13px] text-zinc-500 tabular-nums dark:text-zinc-400">
+            Departs {when}
+            <span className={cn('font-medium', className)}> · {label}</span>
+        </p>
+    )
+}
+
+// Height of the "Show route details" pill, plus margin.
 const PILL_PX = 72
 
 export function RouteDetail({ journey }: { journey: Journey }) {
     const router = useRouter()
     const userLocation = useWatchedLocation()
-    // What the map should frame after a row tap; null = automatic framing.
+    // What to show on the map after a tap. null = automatic.
     const [target, setTarget] = useState<LatLng[] | null>(null)
     const [closed, setClosed] = useState(false)
-    // Hand focus across as the panel hides/shows, so keyboard and screen
-    // reader users aren't dropped on <body> when the focused button goes away.
+    // Move focus when the panel hides or shows, for keyboard and screen readers.
     const showRef = useRef<HTMLButtonElement>(null)
     const hideRef = useRef<HTMLButtonElement>(null)
     const firstToggle = useRef(true)
@@ -183,8 +205,23 @@ export function RouteDetail({ journey }: { journey: Journey }) {
         }
         ;(closed ? showRef : hideRef).current?.focus({ preventScroll: true })
     }, [closed])
-    // Which rides have their intermediate stops expanded, by leg index.
     const [openStops, setOpenStops] = useState<Record<number, boolean>>({})
+
+    const rides = journey.legs.filter((l): l is BusLeg => l.type === 'bus')
+    const statuses = useRideStatuses(rides)
+    const statusOf = (leg: BusLeg) => statuses[rides.indexOf(leg)]
+    const cancelled = rides.filter((r) => statusOf(r)?.cancelled)
+    const findAnother = () => {
+        const params = new URLSearchParams({
+            originLat: String(journey.origin.lat),
+            originLng: String(journey.origin.lng),
+            originLabel: journey.origin.name,
+            destLat: String(journey.destination.lat),
+            destLng: String(journey.destination.lng),
+            destLabel: journey.destination.name,
+        })
+        router.push(`/route?${params}`)
+    }
 
     return (
         <div className="relative min-h-0 flex-1 overflow-hidden">
@@ -207,7 +244,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                 </Button>
             </div>
 
-            {/* inert while hidden: off screen, so not tabbable or read out. */}
+            {/* inert when hidden, so it can't be tabbed to or read out. */}
             <section
                 id="route-panel"
                 inert={closed}
@@ -218,8 +255,6 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                 )}
             >
                 <div className="flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-zinc-100 px-6 dark:border-zinc-800">
-                    {/* No live status here: this is a saved plan, and any delay
-                    shown would be from whenever it was saved. */}
                     <div className="min-w-0">
                         <p className="text-[22px] leading-7 font-bold tracking-tight tabular-nums">
                             {journey.departAt} – {journey.arriveAt}
@@ -242,9 +277,26 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                     </Button>
                 </div>
                 <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-6 pb-10">
+                    {cancelled.length > 0 && (
+                        <div
+                            role="alert"
+                            className="mb-6 flex items-center justify-between gap-3 rounded-2xl bg-alert/10 px-4 py-3"
+                        >
+                            <p className="min-w-0 text-sm font-semibold text-alert">
+                                {cancelled.map((r) => r.route).join(', ')}{' '}
+                                cancelled
+                            </p>
+                            <Button
+                                size="sm"
+                                onClick={findAnother}
+                                className="shrink-0 rounded-full"
+                            >
+                                Find another route
+                            </Button>
+                        </div>
+                    )}
                     {journey.legs.map((leg, i) => {
                         const prev = journey.legs[i - 1]
-                        // The rail coming into this leg from the one before.
                         const into: Rail =
                             i === 0
                                 ? null
@@ -273,8 +325,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                         }
                                     >
                                         <Title>Walk {leg.minutes} min</Title>
-                                        {/* Journeys saved before walks were
-                                        named have an empty `to`. */}
+                                        {/* Old saved journeys have an empty `to`. */}
                                         {leg.to && <Sub>to {leg.to}</Sub>}
                                     </FocusButton>
                                 </Step>
@@ -316,6 +367,11 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                             <Title>to {leg.headsign}</Title>
                                         </div>
                                         <Sub>{leg.minutes} min ride</Sub>
+                                        {statusOf(leg) && (
+                                            <RideStatus
+                                                status={statusOf(leg)!}
+                                            />
+                                        )}
                                     </FocusButton>
                                 </Step>
 
@@ -372,8 +428,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
 
                                 {showStops &&
                                     middle.map((stop, k) => (
-                                        // Index too: loop routes can pass a
-                                        // stop twice.
+                                        // Loop routes can pass a stop twice.
                                         <Step
                                             key={`${k}-${stop.name}`}
                                             above={rail}
@@ -398,7 +453,6 @@ export function RouteDetail({ journey }: { journey: Journey }) {
 
                                 <Step
                                     above={rail}
-                                    // Into the walk/ride after, if any.
                                     below={
                                         journey.legs[i + 1]?.type === 'bus'
                                             ? rideRail(
@@ -457,7 +511,6 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                 onClick={() => setClosed(false)}
                 className={cn(
                     'absolute bottom-4 left-1/2 z-10 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold whitespace-nowrap text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] transition-all duration-300 ease-out active:scale-95',
-                    // Fades in as the panel leaves, out as it returns.
                     closed
                         ? 'opacity-100'
                         : 'pointer-events-none translate-y-4 opacity-0'
