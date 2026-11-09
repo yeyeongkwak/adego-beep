@@ -8,13 +8,14 @@ prediction arrives). A request-sequence guard drops stale responses.
 */
 
 import { useEffect, useRef, useState } from 'react'
-import { PickedLocation, Journey } from '@/types/route'
+import { PickedLocation, Journey, TripTime } from '@/types/route'
 
 const REFRESH_MS = 30_000 // 30 seconds
 
 export function useDirections(
     origin: PickedLocation,
-    destination: PickedLocation
+    destination: PickedLocation,
+    when: TripTime = null
 ) {
     const [journeys, setJourneys] = useState<Journey[]>([])
     const [loading, setLoading] = useState(false)
@@ -28,6 +29,8 @@ export function useDirections(
     const oLng = origin?.lng ?? null
     const dLat = destination?.lat ?? null
     const dLng = destination?.lng ?? null
+    const mode = when?.mode ?? null
+    const atMs = when?.at.getTime() ?? null
 
     // Expose a manual refresh that behaves like the initial load (shows the
     // spinner, clears stale error). Stored in a ref so the stable function
@@ -56,7 +59,14 @@ export function useDirections(
             fetch('/api/directions', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ origin, destination }),
+                body: JSON.stringify({
+                    origin,
+                    destination,
+                    time:
+                        mode && atMs != null
+                            ? { mode, at: new Date(atMs).toISOString() }
+                            : null,
+                }),
                 signal: controller.signal,
             })
                 .then((res) => res.json())
@@ -86,15 +96,16 @@ export function useDirections(
 
         runRef.current = run
         const initial = run(false)
-        const timer = setInterval(() => run(true), REFRESH_MS)
+        // A chosen time is a plan, not live, so no auto refresh.
+        const timer = mode ? null : setInterval(() => run(true), REFRESH_MS)
 
         return () => {
             initial?.abort()
-            clearInterval(timer)
+            if (timer) clearInterval(timer)
             runRef.current = null
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [oLat, oLng, dLat, dLng])
+    }, [oLat, oLng, dLat, dLng, mode, atMs])
 
     return { journeys, loading, error, refresh }
 }

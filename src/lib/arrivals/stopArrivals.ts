@@ -10,22 +10,28 @@ const GRACE_SECONDS = 60
 // If a bus is later than this, we can't show how late it is.
 const LATE_LOOKBACK_SECONDS = 60 * 60
 
+// fromEpoch: start of the list (default now). Directions uses it for trips
+// planned later.
 export async function getStopArrivals(
     db: SupabaseClient,
     stopId: string,
-    { limit, windowMinutes }: { limit: number; windowMinutes: number }
+    {
+        limit,
+        windowMinutes,
+        fromEpoch,
+    }: { limit: number; windowMinutes: number; fromEpoch?: number }
 ): Promise<{ arrivals: StopArrival[]; feedTimestamp: number | null }> {
-    const now = adelaideNow()
     const nowEpoch = Math.floor(Date.now() / 1000)
-    const lowerEpoch = nowEpoch - GRACE_SECONDS
-    const windowEndEpoch = nowEpoch + windowMinutes * 60
+    const startEpoch = fromEpoch ?? nowEpoch
+    const lowerEpoch = startEpoch - GRACE_SECONDS
+    const windowEndEpoch = startEpoch + windowMinutes * 60
 
     const [scheduled, live] = await Promise.all([
         getScheduledCalls(
             db,
             stopId,
-            now,
-            nowEpoch - LATE_LOOKBACK_SECONDS,
+            adelaideNow(startEpoch * 1000),
+            startEpoch - LATE_LOOKBACK_SECONDS,
             windowEndEpoch
         ),
         getLiveArrivals(stopId, lowerEpoch, windowEndEpoch),

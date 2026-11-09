@@ -29,8 +29,8 @@ export type AdelaideNow = {
 
 // Adelaide wall-clock date + the epoch of local midnight. The GTFS service day
 // is local, so this is independent of the server's own timezone.
-export function adelaideNow(): AdelaideNow {
-    const now = new Date()
+export function adelaideNow(atMs = Date.now()): AdelaideNow {
+    const now = new Date(atMs)
     const parts = new Intl.DateTimeFormat('en-CA', {
         timeZone: TZ,
         year: 'numeric',

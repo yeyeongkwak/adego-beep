@@ -15,6 +15,13 @@ import { TripTime } from '@/types/route'
 const toLocal = (d: Date) =>
     new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString()
 
+// The drawer eats clicks on the picker icon, so open the picker ourselves.
+const openPicker = (e: React.MouseEvent<HTMLInputElement>) => {
+    try {
+        e.currentTarget.showPicker()
+    } catch {}
+}
+
 const INPUT_CLASS =
     'h-12 w-full rounded-xl bg-zinc-100 px-3 text-base font-medium outline-none focus-visible:ring-2 focus-visible:ring-accent dark:bg-zinc-800'
 
@@ -89,6 +96,7 @@ export function TripTimeSheet({
                             }
                             value={date}
                             onChange={(e) => setDate(e.target.value)}
+                            onClick={openPicker}
                             className={INPUT_CLASS}
                         />
                         <input
@@ -97,6 +105,7 @@ export function TripTimeSheet({
                             step={300}
                             value={time}
                             onChange={(e) => setTime(e.target.value)}
+                            onClick={openPicker}
                             className={INPUT_CLASS}
                         />
                     </div>

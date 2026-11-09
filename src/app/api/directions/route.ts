@@ -337,7 +337,11 @@ function stopsAway(
 }
 
 // Cache per request. Other routes often use the same stops and trips.
-function createEnricher(db: SupabaseClient, nowEpoch: number) {
+function createEnricher(
+    db: SupabaseClient,
+    nowEpoch: number,
+    fromEpoch: number | undefined
+) {
     const stopCache = new Map<string, Promise<GtfsStop[]>>()
     const arrivalsCache = new Map<string, Promise<StopArrival[]>>()
     const callsCache = new Map<string, Promise<TripCall[]>>()
@@ -355,6 +359,7 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
                 getStopArrivals(db, stopId, {
                     limit: ARRIVALS_LIMIT,
                     windowMinutes: ARRIVALS_WINDOW_MINUTES,
+                    fromEpoch,
                 })
                     .then((r) => r.arrivals)
                     .catch(() => [])
@@ -420,10 +425,13 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
         const { stop } = best
         const match = best.match.arrival
 
+        // Blocks repeat every day, so a far trip would find today's vehicle.
+        const soon =
+            match.arrivalEpoch - nowEpoch <= ARRIVALS_WINDOW_MINUTES * 60
         const [calls, updates, vehicle] = await Promise.all([
             callsFor(match.tripId),
             getTripUpdates(match.tripId),
-            vehicleFor(match.tripId),
+            soon ? vehicleFor(match.tripId) : null,
         ])
         const alight = alighting
             ? alightingTime(calls, updates, match, alighting)
@@ -470,6 +478,17 @@ function createEnricher(db: SupabaseClient, nowEpoch: number) {
     return { enrich, prefetch }
 }
 
+type TripTimeBody = { mode: 'depart' | 'arrive'; at: string }
+
+function parseTime(value: unknown): TripTimeBody | null {
+    const t = value as Partial<TripTimeBody> | null
+    if (t?.mode !== 'depart' && t?.mode !== 'arrive') return null
+    const ms = Date.parse(t.at ?? '')
+    return Number.isFinite(ms)
+        ? { mode: t.mode, at: new Date(ms).toISOString() }
+        : null
+}
+
 export async function POST(request: NextRequest) {
     const key = process.env.GOOGLE_MAPS_API_KEY
     if (!key) {
@@ -482,6 +501,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => null)
     const origin = body?.origin
     const destination = body?.destination
+    const time = parseTime(body?.time)
     if (
         !origin ||
         !destination ||
@@ -521,6 +541,10 @@ export async function POST(request: NextRequest) {
                 },
                 travelMode: 'TRANSIT',
                 computeAlternativeRoutes: true,
+                ...(time && {
+                    [time.mode === 'depart' ? 'departureTime' : 'arrivalTime']:
+                        time.at,
+                }),
             }),
         })
         const data = await res.json()
@@ -532,9 +556,6 @@ export async function POST(request: NextRequest) {
         }
 
         const nowEpoch = Math.floor(Date.now() / 1000)
-        const db = createPublicClient()
-        const { enrich, prefetch } = createEnricher(db, nowEpoch)
-
         const originStop: RouteStop = {
             name: origin.label ?? 'Start',
             lat: origin.lat,
@@ -546,11 +567,31 @@ export async function POST(request: NextRequest) {
             lng: destination.lng,
         }
 
+        const routes = (data.routes ?? []) as GoogleRoute[]
+        // Google gives one leg. Walks and rides are in its steps.
+        const plans = routes.map((route) =>
+            buildLegs(route.legs?.[0]?.steps ?? [], nowEpoch, destStop.name)
+        )
+
+        // For a later trip, look up our times from Google's first bus, not now.
+        const firstBus = Math.min(
+            ...plans
+                .flat()
+                .map((l) =>
+                    l.type === 'bus' ? (l.departureEpoch ?? Infinity) : Infinity
+                )
+        )
+        const fromEpoch =
+            time && Number.isFinite(firstBus)
+                ? Math.max(nowEpoch, firstBus - MATCH_TOLERANCE_S)
+                : undefined
+
+        const db = createPublicClient()
+        const { enrich, prefetch } = createEnricher(db, nowEpoch, fromEpoch)
+
         const built = await Promise.all(
-            ((data.routes ?? []) as GoogleRoute[]).map(async (route, i) => {
-                // Google gives one leg. Walks and rides are in its steps.
-                const steps = route.legs?.[0]?.steps ?? []
-                const planned = buildLegs(steps, nowEpoch, destStop.name)
+            routes.map(async (route, i) => {
+                const planned = plans[i]
                 for (const leg of planned) if (leg.type === 'bus') prefetch(leg)
 
                 // The next ride must leave after this ride arrives + walk time.

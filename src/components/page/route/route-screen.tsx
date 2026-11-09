@@ -26,9 +26,11 @@ import { ModeIcon, LiveDot } from './common'
 const JourneyCard = ({
     journey,
     userLocation,
+    planned,
 }: {
     journey: Journey
     userLocation: { lat: number; lng: number } | null
+    planned: boolean
 }) => {
     // Snapshot the tapped ride so the map shows only that bus, and so the 30s
     // journeys refetch can't swap it out while the sheet is open.
@@ -44,7 +46,7 @@ const JourneyCard = ({
     const departsIn = bus?.departsIn ?? 0
     // Past an hour a countdown is unreadable; show the clock time
     // instead, and skip the catch hint since there's no rush to judge.
-    const far = departsIn > 60
+    const far = planned || departsIn > 60
     const [clock, meridiem] = journey.departAt.split(/\s+/)
     const hint = bus && !far && catchHint(walkMin, departsIn)
 
@@ -341,7 +343,8 @@ export function RouteScreen() {
     // Real transit journeys once both endpoints are set.
     const { journeys, loading, error, refresh } = useDirections(
         origin,
-        destination
+        destination,
+        when
     )
 
     const swap = () => {
@@ -519,6 +522,7 @@ export function RouteScreen() {
                             key={journey.id}
                             journey={journey}
                             userLocation={userLocation}
+                            planned={!!when}
                         />
                     ))}
                 </div>
