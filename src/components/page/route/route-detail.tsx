@@ -204,23 +204,63 @@ const FareNote = ({ leg }: { leg: BusLeg }) => {
 
 // Height of the "Show route details" pill, plus margin.
 const PILL_PX = 72
+// Space left above the full panel, so the back button stays visible.
+const TOP_GAP_PX = 64
+// A smaller move than this is a tap, not a drag.
+const DRAG_MIN_PX = 6
+
+type PanelSize = 'closed' | 'half' | 'full'
 
 export function RouteDetail({ journey }: { journey: Journey }) {
     const router = useRouter()
     const userLocation = useWatchedLocation()
     // What to show on the map after a tap. null = automatic.
     const [target, setTarget] = useState<LatLng[] | null>(null)
-    const [closed, setClosed] = useState(false)
+    const [size, setSize] = useState<PanelSize>('half')
+    const closed = size === 'closed'
+    const panelRef = useRef<HTMLElement>(null)
+    const drag = useRef<{ startY: number; startH: number } | null>(null)
+    const [dragH, setDragH] = useState<number | null>(null)
+
+    const maxH = () =>
+        (panelRef.current?.parentElement?.clientHeight ?? 0) - TOP_GAP_PX
+    const startDrag = (e: React.PointerEvent<HTMLElement>) => {
+        drag.current = {
+            startY: e.clientY,
+            startH: panelRef.current?.offsetHeight ?? 0,
+        }
+    }
+    const moveDrag = (e: React.PointerEvent<HTMLElement>) => {
+        const d = drag.current
+        if (!d) return
+        const h = d.startH + d.startY - e.clientY
+        // Capture only once it's a real drag, so a tap still clicks the handle.
+        if (dragH == null && Math.abs(h - d.startH) < DRAG_MIN_PX) return
+        e.currentTarget.setPointerCapture(e.pointerId)
+        setDragH(Math.max(0, Math.min(h, maxH())))
+    }
+    // Snap to the closest size: closed, half or full.
+    const endDrag = () => {
+        const d = drag.current
+        drag.current = null
+        if (!d || dragH == null) return
+        setDragH(null)
+        const full = maxH()
+        const half = (full + TOP_GAP_PX) / 2
+        if (dragH > (half + full) / 2) setSize('full')
+        else if (dragH < half / 2) setSize('closed')
+        else setSize('half')
+    }
     // Move focus when the panel hides or shows, for keyboard and screen readers.
     const showRef = useRef<HTMLButtonElement>(null)
-    const hideRef = useRef<HTMLButtonElement>(null)
+    const handleRef = useRef<HTMLButtonElement>(null)
     const firstToggle = useRef(true)
     useEffect(() => {
         if (firstToggle.current) {
             firstToggle.current = false
             return
         }
-        ;(closed ? showRef : hideRef).current?.focus({ preventScroll: true })
+        ;(closed ? showRef : handleRef).current?.focus({ preventScroll: true })
     }, [closed])
     const [openStops, setOpenStops] = useState<Record<number, boolean>>({})
 
@@ -263,15 +303,43 @@ export function RouteDetail({ journey }: { journey: Journey }) {
 
             {/* inert when hidden, so it can't be tabbed to or read out. */}
             <section
+                ref={panelRef}
                 id="route-panel"
                 inert={closed}
                 aria-label="Route details"
+                style={dragH != null ? { height: dragH } : undefined}
                 className={cn(
-                    'absolute inset-x-0 bottom-0 z-10 flex h-1/2 flex-col rounded-t-[28px] bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out dark:bg-zinc-900',
+                    'absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-[28px] bg-white shadow-[0_-8px_24px_rgba(0,0,0,0.08)] dark:bg-zinc-900',
+                    dragH == null &&
+                        'transition-[height,transform] duration-300 ease-out',
+                    size === 'full' ? 'h-[calc(100%-64px)]' : 'h-1/2',
                     closed && 'translate-y-full'
                 )}
             >
-                <div className="flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-zinc-100 px-6 dark:border-zinc-800">
+                <div
+                    onPointerDown={startDrag}
+                    onPointerMove={moveDrag}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    className="relative flex h-[72px] shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-zinc-100 px-6 select-none active:cursor-grabbing dark:border-zinc-800"
+                >
+                    <button
+                        type="button"
+                        ref={handleRef}
+                        aria-expanded={size === 'full'}
+                        aria-controls="route-panel"
+                        aria-label={
+                            size === 'full'
+                                ? 'Shrink route details'
+                                : 'Expand route details'
+                        }
+                        onClick={() =>
+                            setSize(size === 'full' ? 'half' : 'full')
+                        }
+                        className="absolute top-0 left-1/2 flex h-5 w-16 -translate-x-1/2 cursor-grab items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                        <span className="h-1 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                    </button>
                     <div className="min-w-0">
                         <p className="text-[22px] leading-7 font-bold tracking-tight tabular-nums">
                             {journey.departAt} – {journey.arriveAt}
@@ -280,18 +348,6 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                             {journey.minutes} min total
                         </p>
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        ref={hideRef}
-                        aria-expanded={!closed}
-                        aria-controls="route-panel"
-                        aria-label="Hide route details"
-                        onClick={() => setClosed(true)}
-                        className="size-10 shrink-0 rounded-full bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
-                    >
-                        <ChevronDown className="size-5" />
-                    </Button>
                 </div>
                 <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-6 pb-10">
                     {cancelled.length > 0 && (
@@ -526,7 +582,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                 type="button"
                 aria-expanded={!closed}
                 aria-controls="route-panel"
-                onClick={() => setClosed(false)}
+                onClick={() => setSize('half')}
                 className={cn(
                     'absolute bottom-4 left-1/2 z-10 flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold whitespace-nowrap text-white shadow-[0_8px_24px_rgba(0,0,0,0.18)] transition-all duration-300 ease-out active:scale-95',
                     closed
