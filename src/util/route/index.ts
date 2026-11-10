@@ -1,5 +1,44 @@
 import { Check, TriangleAlert, Zap } from 'lucide-react'
-import { BusLeg } from '@/types/route'
+import { BusLeg, Journey, LatLng } from '@/types/route'
+
+// City Connector loops. Free for everyone.
+const FREE_BUSES = new Set(['98A', '98C', '99A', '99C'])
+
+// Trams are free from South Terrace north, and on Jetty Rd
+// (Brighton Rd to Moseley Sq). Between the two you pay.
+function freeTramZone({ lat, lng }: LatLng) {
+    if (lat > -34.939) return 'city'
+    if (lat < -34.975 && lng < 138.523) return 'glenelg'
+    return null
+}
+
+const FREE_NOTE = { free: true, text: 'Free — no need to tap on' }
+
+// What to tell the rider about paying. null = a normal ride, tap on as usual.
+export function fareNote(leg: BusLeg): { free: boolean; text: string } | null {
+    if (leg.mode === 'BUS') return FREE_BUSES.has(leg.route) ? FREE_NOTE : null
+    if (leg.mode !== 'TRAM') return null
+    const from = leg.path[0]
+    const to = leg.path.at(-1)
+    if (!from || !to) return null
+    const zone = freeTramZone(from)
+    if (!zone) return null
+    if (zone === freeTramZone(to)) return FREE_NOTE
+    return {
+        free: false,
+        text:
+            zone === 'city'
+                ? 'Free in the city. Tap on before you pass South Terrace'
+                : 'Free on Jetty Rd. Tap on before you pass Brighton Rd',
+    }
+}
+
+export const isFreeRide = (leg: BusLeg) => fareNote(leg)?.free ?? false
+
+export function isFreeJourney(journey: Journey) {
+    const rides = journey.legs.filter((leg) => leg.type === 'bus')
+    return rides.length > 0 && rides.every(isFreeRide)
+}
 
 // Can you make the bus? Compare the walk time with the countdown.
 export function catchHint(walkMin: number, departsIn: number) {

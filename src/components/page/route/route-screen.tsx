@@ -20,7 +20,7 @@ import { useGeolocation } from '@/hooks/useGeolocation'
 import { useDirections } from '@/hooks/useDirections'
 import { VehicleMapSheet } from './vehicle-map-sheet'
 import { fetchLocationLabel } from '@/util/reverseGeocode'
-import { catchHint, delayStatus } from '@/util/route'
+import { catchHint, delayStatus, isFreeJourney } from '@/util/route'
 import { ModeIcon, LiveDot } from './common'
 
 const JourneyCard = ({
@@ -152,6 +152,11 @@ const JourneyCard = ({
                             <p className="text-xs text-zinc-500 dark:text-zinc-400">
                                 {journey.minutes} min total
                             </p>
+                            {isFreeJourney(journey) && (
+                                <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400">
+                                    Free
+                                </span>
+                            )}
                         </div>
                     </div>
 
@@ -346,6 +351,7 @@ export function RouteScreen() {
         destination,
         when
     )
+    const shown = freeOnly ? journeys.filter(isFreeJourney) : journeys
 
     const swap = () => {
         setOrigin(destination)
@@ -509,15 +515,22 @@ export function RouteScreen() {
                         {error}
                     </p>
                 </div>
+            ) : freeOnly && shown.length === 0 ? (
+                <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+                    <MapPin className="size-8 text-zinc-300 dark:text-zinc-600" />
+                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                        No free routes for this trip.
+                    </p>
+                </div>
             ) : (
                 <div className="scrollbar-hide flex-1 space-y-3 overflow-y-auto px-4 py-4">
                     <div className="flex items-center justify-between">
                         <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                            {journeys.length}{' '}
-                            {journeys.length === 1 ? 'route' : 'routes'}
+                            {shown.length}{' '}
+                            {shown.length === 1 ? 'route' : 'routes'}
                         </p>
                     </div>
-                    {journeys.map((journey) => (
+                    {shown.map((journey) => (
                         <JourneyCard
                             key={journey.id}
                             journey={journey}

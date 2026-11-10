@@ -23,7 +23,7 @@ import { useWatchedLocation } from '@/hooks/useGeolocation'
 import { useRideStatuses } from '@/hooks/useRideStatus'
 import { decodePolyline } from '@/util/map/polyline'
 import { formatArrival } from '@/util/arrival'
-import { delayStatus } from '@/util/route'
+import { delayStatus, fareNote } from '@/util/route'
 import { ModeIcon } from './common'
 
 const RouteBadge = ({ leg }: { leg: BusLeg }) => (
@@ -181,6 +181,23 @@ const RideStatus = ({ status }: { status: StopArrival }) => {
         <p className="mt-0.5 text-[13px] text-zinc-500 tabular-nums dark:text-zinc-400">
             Departs {when}
             <span className={cn('font-medium', className)}> · {label}</span>
+        </p>
+    )
+}
+
+const FareNote = ({ leg }: { leg: BusLeg }) => {
+    const note = fareNote(leg)
+    if (!note) return null
+    return (
+        <p
+            className={cn(
+                'mt-0.5 text-[13px] font-medium',
+                note.free
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-amber-600 dark:text-amber-400'
+            )}
+        >
+            {note.text}
         </p>
     )
 }
@@ -372,6 +389,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                                 status={statusOf(leg)!}
                                             />
                                         )}
+                                        <FareNote leg={leg} />
                                     </FocusButton>
                                 </Step>
 
