@@ -268,15 +268,18 @@ export function RouteDetail({ journey }: { journey: Journey }) {
     const statuses = useRideStatuses(rides)
     const statusOf = (leg: BusLeg) => statuses[rides.indexOf(leg)]
     const cancelled = rides.filter((r) => statusOf(r)?.cancelled)
+
     const findAnother = () => {
         const params = new URLSearchParams({
-            originLat: String(journey.origin.lat),
-            originLng: String(journey.origin.lng),
-            originLabel: journey.origin.name,
             destLat: String(journey.destination.lat),
             destLng: String(journey.destination.lng),
             destLabel: journey.destination.name,
         })
+        if (!userLocation) {
+            params.set('originLat', String(journey.origin.lat))
+            params.set('originLng', String(journey.origin.lng))
+            params.set('originLabel', journey.origin.name)
+        }
         router.push(`/route?${params}`)
     }
 
