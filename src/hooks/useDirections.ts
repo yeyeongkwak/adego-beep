@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { PickedLocation, Journey, TripTime } from '@/types/route'
 
 const REFRESH_MS = 30_000 // 30 seconds
+const GOOGLE_EVERY_MS = 5 * 60_000 // ask Google for new options after this long
 
 export function useDirections(
     origin: PickedLocation,
@@ -21,6 +22,9 @@ export function useDirections(
     const [error, setError] = useState<string | null>(null)
 
     const reqSeq = useRef(0)
+    // Google's plans from the last Google call, and when that was.
+    const plans = useRef<unknown[] | null>(null)
+    const googleAt = useRef(0)
 
     // Depend on the coordinates, not object identity, so a re-created object
     // with the same location doesn't trigger a redundant fetch.
@@ -51,7 +55,9 @@ export function useDirections(
 
         // `fetchDataBackground` refreshes skip the loading state so the list doesn't
         // flicker every minute; only the first load shows the spinner.
-        const run = (fetchDataBackground: boolean) => {
+        // With `askGoogle` false we send back the last plans. The server then
+        // only updates the times, without calling Google (costs money).
+        const run = (fetchDataBackground: boolean, askGoogle = true) => {
             const seq = ++reqSeq.current
             const controller = new AbortController()
             if (!fetchDataBackground) {
@@ -69,12 +75,22 @@ export function useDirections(
                         mode && atMs != null
                             ? { mode, at: new Date(atMs).toISOString() }
                             : null,
+                    plans: askGoogle ? undefined : plans.current,
                 }),
                 signal: controller.signal,
             })
                 .then((res) => res.json())
                 .then((data) => {
                     if (seq !== reqSeq.current) return
+                    if (askGoogle) {
+                        plans.current = data.plans ?? null
+                        googleAt.current = Date.now()
+                    }
+                    // A bus has left. Get new options from Google.
+                    if (data.stale) {
+                        run(true)
+                        if (!data.journeys?.length) return
+                    }
                     setJourneys(data.journeys ?? [])
                     setError(
                         (data.journeys ?? []).length === 0
@@ -98,9 +114,20 @@ export function useDirections(
         }
 
         runRef.current = run
+        plans.current = null
         const initial = run(false)
         // A chosen time is a plan, not live, so no auto refresh.
-        const timer = mode ? null : setInterval(() => run(true), REFRESH_MS)
+        const timer = mode
+            ? null
+            : setInterval(
+                  () =>
+                      run(
+                          true,
+                          !plans.current ||
+                              Date.now() - googleAt.current >= GOOGLE_EVERY_MS
+                      ),
+                  REFRESH_MS
+              )
 
         return () => {
             initial?.abort()

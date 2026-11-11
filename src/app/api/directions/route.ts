@@ -12,6 +12,7 @@ import type {
     BusLeg,
     Journey,
     JourneyLeg,
+    LatLng,
     RouteStop,
     StopArrival,
     StopArrivalUpdate,
@@ -45,6 +46,7 @@ const ARRIVALS_LIMIT = 80
 const MATCH_TOLERANCE_S = 15 * 60
 const ALIGHT_MAX_DISTANCE_M = 250
 const TRANSFER_BUFFER_S = 60
+const DEPARTED_GRACE_S = 60
 
 // Google vehicle types -> our BUS/TRAM/RAIL.
 function vehicleTypeToMode(type: string | undefined): StopMode {
@@ -489,6 +491,80 @@ function parseTime(value: unknown): TripTimeBody | null {
         : null
 }
 
+// Google's plan for one option, before we change the times.
+type Plan = { legs: JourneyLeg[]; durationS: number }
+
+const isLatLng = (v: unknown) =>
+    typeof (v as LatLng)?.lat === 'number' &&
+    typeof (v as LatLng)?.lng === 'number'
+
+// Plans come back from the app, so check them before we use them.
+function parsePlans(value: unknown): Plan[] | null {
+    if (!Array.isArray(value) || value.length === 0 || value.length > 10)
+        return null
+    const ok = value.every(
+        (p) =>
+            typeof p?.durationS === 'number' &&
+            Array.isArray(p.legs) &&
+            p.legs.length <= 20 &&
+            p.legs.every((l: JourneyLeg) =>
+                l?.type === 'walk'
+                    ? typeof l.minutes === 'number'
+                    : l?.type === 'bus' &&
+                      typeof l.route === 'string' &&
+                      Array.isArray(l.path) &&
+                      l.path.every(isLatLng)
+            )
+    )
+    return ok ? (value as Plan[]) : null
+}
+
+async function fetchGooglePlans(
+    key: string,
+    origin: RouteStop,
+    destination: RouteStop,
+    time: TripTimeBody | null,
+    nowEpoch: number
+): Promise<Plan[] | null> {
+    const latLng = (s: RouteStop) => ({
+        location: { latLng: { latitude: s.lat, longitude: s.lng } },
+    })
+    const res = await fetch(COMPUTE_ROUTES_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-Api-Key': key,
+            'X-Goog-FieldMask': FIELD_MASK,
+        },
+        body: JSON.stringify({
+            origin: latLng(origin),
+            destination: latLng(destination),
+            travelMode: 'TRANSIT',
+            computeAlternativeRoutes: true,
+            ...(time && {
+                [time.mode === 'depart' ? 'departureTime' : 'arrivalTime']:
+                    time.at,
+            }),
+        }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+        console.warn(
+            `[directions] ${res.status}: ${data?.error?.message ?? 'unknown'}`
+        )
+        return null
+    }
+    // Google gives one leg. Walks and rides are in its steps.
+    return ((data.routes ?? []) as GoogleRoute[]).map((route) => ({
+        legs: buildLegs(
+            route.legs?.[0]?.steps ?? [],
+            nowEpoch,
+            destination.name
+        ),
+        durationS: durationToSeconds(route.duration),
+    }))
+}
+
 export async function POST(request: NextRequest) {
     const key = process.env.GOOGLE_MAPS_API_KEY
     if (!key) {
@@ -514,69 +590,30 @@ export async function POST(request: NextRequest) {
         )
     }
 
+    const nowEpoch = Math.floor(Date.now() / 1000)
+    const originStop: RouteStop = {
+        name: origin.label ?? 'Start',
+        lat: origin.lat,
+        lng: origin.lng,
+    }
+    const destStop: RouteStop = {
+        name: destination.label ?? 'Destination',
+        lat: destination.lat,
+        lng: destination.lng,
+    }
+
     try {
-        const res = await fetch(COMPUTE_ROUTES_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-Goog-Api-Key': key,
-                'X-Goog-FieldMask': FIELD_MASK,
-            },
-            body: JSON.stringify({
-                origin: {
-                    location: {
-                        latLng: {
-                            latitude: origin.lat,
-                            longitude: origin.lng,
-                        },
-                    },
-                },
-                destination: {
-                    location: {
-                        latLng: {
-                            latitude: destination.lat,
-                            longitude: destination.lng,
-                        },
-                    },
-                },
-                travelMode: 'TRANSIT',
-                computeAlternativeRoutes: true,
-                ...(time && {
-                    [time.mode === 'depart' ? 'departureTime' : 'arrivalTime']:
-                        time.at,
-                }),
-            }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-            console.warn(
-                `[directions] ${res.status}: ${data?.error?.message ?? 'unknown'}`
-            )
-            return NextResponse.json({ journeys: [] })
-        }
-
-        const nowEpoch = Math.floor(Date.now() / 1000)
-        const originStop: RouteStop = {
-            name: origin.label ?? 'Start',
-            lat: origin.lat,
-            lng: origin.lng,
-        }
-        const destStop: RouteStop = {
-            name: destination.label ?? 'Destination',
-            lat: destination.lat,
-            lng: destination.lng,
-        }
-
-        const routes = (data.routes ?? []) as GoogleRoute[]
-        // Google gives one leg. Walks and rides are in its steps.
-        const plans = routes.map((route) =>
-            buildLegs(route.legs?.[0]?.steps ?? [], nowEpoch, destStop.name)
-        )
+        // A refresh sends back the plans from last time, so we skip Google.
+        const sentPlans = parsePlans(body?.plans)
+        const plans =
+            sentPlans ??
+            (await fetchGooglePlans(key, originStop, destStop, time, nowEpoch))
+        if (!plans) return NextResponse.json({ journeys: [] })
 
         // For a later trip, look up our times from Google's first bus, not now.
         const firstBus = Math.min(
             ...plans
-                .flat()
+                .flatMap((p) => p.legs)
                 .map((l) =>
                     l.type === 'bus' ? (l.departureEpoch ?? Infinity) : Infinity
                 )
@@ -590,8 +627,19 @@ export async function POST(request: NextRequest) {
         const { enrich, prefetch } = createEnricher(db, nowEpoch, fromEpoch)
 
         const built = await Promise.all(
-            routes.map(async (route, i) => {
-                const planned = plans[i]
+            plans.map(async (plan, i) => {
+                // Plans can be minutes old. Count down from now.
+                const planned = plan.legs.map((l) =>
+                    l.type === 'bus' && l.departureEpoch != null
+                        ? {
+                              ...l,
+                              departsIn: minutesFromNow(
+                                  l.departureEpoch,
+                                  nowEpoch
+                              ),
+                          }
+                        : l
+                )
                 for (const leg of planned) if (leg.type === 'bus') prefetch(leg)
 
                 // The next ride must leave after this ride arrives + walk time.
@@ -636,9 +684,7 @@ export async function POST(request: NextRequest) {
                     minutes:
                         arriveEpoch != null && leaveEpoch != null
                             ? Math.round((arriveEpoch - leaveEpoch) / 60)
-                            : Math.round(
-                                  durationToSeconds(route.duration) / 60
-                              ),
+                            : Math.round(plan.durationS / 60),
                     legs,
                 }
                 return { journey, arriveEpoch }
@@ -664,7 +710,21 @@ export async function POST(request: NextRequest) {
                 return !seen.has(key) && seen.add(key)
             })
 
-        return NextResponse.json({ journeys })
+        // You can't catch a bus that has left.
+        const catchable = journeys.filter((j) => {
+            const first = j.legs.find((l): l is BusLeg => l.type === 'bus')
+            return (
+                first?.departureEpoch == null ||
+                first.departureEpoch >= nowEpoch - DEPARTED_GRACE_S
+            )
+        })
+
+        return NextResponse.json({
+            journeys: catchable,
+            plans,
+            // Some options are gone. The app asks Google for new ones.
+            stale: sentPlans != null && catchable.length < journeys.length,
+        })
     } catch (error) {
         console.warn('[directions] failed:', (error as Error).message)
         return NextResponse.json({ journeys: [] })
