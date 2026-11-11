@@ -10,6 +10,8 @@ import type {
 
 const ID_CHUNK = 200
 const EARLY_SECONDS = 5 * 60
+// Adelaide gives every last stop this number. The bus ends there.
+const LAST_STOP = 999
 
 async function fetchByIds<T>(
     db: SupabaseClient,
@@ -80,10 +82,13 @@ function pairLive(
             call.routeId = update.routeId
             call.live = true
         } else {
+            // On a loop the feed calls the start 999 too.
+            const loopStart =
+                update.stopSequence === LAST_STOP && update.visit === 'first'
             rows.push({
                 tripId: update.tripId,
                 routeId: update.routeId,
-                stopSequence: update.stopSequence,
+                stopSequence: loopStart ? 1 : update.stopSequence,
                 arrivalEpoch: update.arrivalEpoch,
                 scheduledEpoch: null,
                 live: true,
@@ -102,9 +107,9 @@ export async function mergeArrivals(
     lowerEpoch: number,
     limit: number
 ): Promise<StopArrival[]> {
-    // Keep one row per trip. On a loop, the later one is the bus finishing.
     const seen = new Set<string>()
     const merged = pairLive(scheduled, live)
+        .filter((r) => r.stopSequence !== LAST_STOP)
         .filter((r) => r.arrivalEpoch >= lowerEpoch)
         .sort((a, b) => a.arrivalEpoch - b.arrivalEpoch)
         .filter((r) => !seen.has(r.tripId) && seen.add(r.tripId))
