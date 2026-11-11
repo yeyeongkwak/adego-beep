@@ -123,8 +123,6 @@ export type BusLeg = {
     departsIn: number
     // Departure time (epoch seconds), if we know it.
     departureEpoch?: number | null
-    // Timetable departure. It doesn't change when the bus is late, so with
-    // tripId it tells which ride this is.
     scheduledDepartureEpoch: number | null
     // Optional because old saved journeys don't have these.
     arrivalEpoch?: number | null

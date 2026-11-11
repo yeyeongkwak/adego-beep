@@ -18,7 +18,6 @@ export function useDirections(
     when: TripTime = null
 ) {
     const [journeys, setJourneys] = useState<Journey[]>([])
-    const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
     const reqSeq = useRef(0)
@@ -31,6 +30,10 @@ export function useDirections(
     const dLng = destination?.lng ?? null
     const mode = when?.mode ?? null
     const atMs = when?.at.getTime() ?? null
+
+    const key = [oLat, oLng, dLat, dLng, mode, atMs].join()
+    const [doneKey, setDoneKey] = useState<string | null>(null)
+    const loading = oLat != null && dLat != null && key !== doneKey
 
     // Expose a manual refresh that behaves like the initial load (shows the
     // spinner, clears stale error). Stored in a ref so the stable function
@@ -52,7 +55,7 @@ export function useDirections(
             const seq = ++reqSeq.current
             const controller = new AbortController()
             if (!fetchDataBackground) {
-                setLoading(true)
+                setDoneKey(null)
                 setError(null)
             }
 
@@ -88,7 +91,7 @@ export function useDirections(
                 })
                 .finally(() => {
                     if (seq === reqSeq.current && !fetchDataBackground)
-                        setLoading(false)
+                        setDoneKey(key)
                 })
 
             return controller
