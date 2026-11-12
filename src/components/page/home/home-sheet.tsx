@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { Stop } from '@/types/common'
 import { StopList, StopArrivalsPanel } from '@/components/ui/home'
+import { FavouritesList } from '@/components/ui/favourites'
 import { LocationSearchSheet } from '@/components/ui/location-search-sheet'
 import type { PickedLocation } from '@/types/route'
 
@@ -174,7 +175,9 @@ export function HomeSheet({
                                         />
                                     </TabsContent>
                                     <TabsContent value="favourites">
-                                        {/* <FavouritesList /> */}
+                                        <FavouritesList
+                                            onSelectStop={onSelectStop}
+                                        />
                                     </TabsContent>
                                     <TabsContent value="recent">
                                         <StopList

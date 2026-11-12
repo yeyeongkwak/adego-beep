@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils'
 import type { BusLeg, Journey, TripTime, PickedLocation } from '@/types/route'
 import { TripTimeSheet } from './trip-time-sheet'
 import { LocationSearchSheet } from '@/components/ui/location-search-sheet'
+import { FavouritePlaceButton } from '@/components/ui/favourites'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { useDirections } from '@/hooks/useDirections'
 import { VehicleMapSheet } from './vehicle-map-sheet'
@@ -382,16 +383,21 @@ export function RouteScreen() {
                         >
                             {originLabel}
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => setPicking('destination')}
-                            className={cn(
-                                'block w-full truncate px-2 py-2.5 text-left text-sm font-medium',
-                                !destination && 'text-zinc-400'
+                        <div className="flex items-center">
+                            <button
+                                type="button"
+                                onClick={() => setPicking('destination')}
+                                className={cn(
+                                    'block min-w-0 flex-1 truncate px-2 py-2.5 text-left text-sm font-medium',
+                                    !destination && 'text-zinc-400'
+                                )}
+                            >
+                                {destinationLabel}
+                            </button>
+                            {destination && (
+                                <FavouritePlaceButton place={destination} />
                             )}
-                        >
-                            {destinationLabel}
-                        </button>
+                        </div>
                     </div>
                     <Button
                         variant="ghost"

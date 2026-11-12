@@ -19,10 +19,11 @@ import {
 import { useFavourites } from '@/hooks/useFavourites'
 import { useRecent } from '@/hooks/useRecent'
 import { useGeolocation } from '@/hooks/useGeolocation'
-import { usePlacesSearch } from '@/hooks/usePlacesSearch'
+import { usePlacesSearch, type ResolvedPlace } from '@/hooks/usePlacesSearch'
+import { toPlaceFavourite } from '@/components/ui/favourites'
 import { fetchLocationLabel } from '@/util/reverseGeocode'
 import { cn } from '@/lib/utils'
-import { Favourite } from '@/types/common'
+import { Favourite, STOP_MODE_STYLE } from '@/types/common'
 import { PickedLocation } from '@/types/route'
 
 function Row({
@@ -83,8 +84,11 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     )
 }
 
-const subtitleOf = (f: Favourite) =>
-    f.placeType === 'stop' ? 'Stop' : undefined
+const FavouriteIcon = ({ favourite }: { favourite: Favourite }) => {
+    const style = favourite.mode ? STOP_MODE_STYLE[favourite.mode] : null
+    const Icon = style?.icon ?? MapPin
+    return <Icon className={cn('size-[18px]', style?.iconClass)} />
+}
 
 export function LocationSearchSheet({
     open,
@@ -97,7 +101,7 @@ export function LocationSearchSheet({
     placeholder: string
     onSelect: (location: PickedLocation) => void
 }) {
-    const { favourites, remove } = useFavourites()
+    const { favourites, remove, isFavourite, toggle } = useFavourites()
     const { recents } = useRecent()
     const { request: requestLocation } = useGeolocation()
     const [query, setQuery] = useState('')
@@ -126,10 +130,36 @@ export function LocationSearchSheet({
         onOpenChange(false)
     }
 
+    // Each lookup costs money, so keep the places we already looked up.
+    const [resolved, setResolved] = useState<Record<string, ResolvedPlace>>({})
+    const resolvePlace = async (placeId: string) => {
+        const known = resolved[placeId]
+        if (known) return known
+        const place = await resolve(placeId)
+        if (place) setResolved((r) => ({ ...r, [placeId]: place }))
+        return place
+    }
+
     // Turn a chosen prediction into coordinates before handing it back.
     const pickPrediction = async (placeId: string) => {
-        const place = await resolve(placeId)
+        const place = await resolvePlace(placeId)
         if (place) pick(place)
+    }
+
+    const isStarred = (placeId: string) => {
+        const place = resolved[placeId]
+        return !!place && isFavourite('place', toPlaceFavourite(place).placeId)
+    }
+
+    // Before the lookup we can't tell if it's saved, so the first tap only adds.
+    const starPrediction = async (placeId: string) => {
+        const wasKnown = placeId in resolved
+        const place = await resolvePlace(placeId)
+        if (!place) return
+        const favourite = toPlaceFavourite(place)
+        if (wasKnown || !isFavourite('place', favourite.placeId)) {
+            toggle(favourite)
+        }
     }
 
     // Ask for a location fix, resolve it to an address label, then hand back a
@@ -227,11 +257,13 @@ export function LocationSearchSheet({
                             {favs.map((f) => (
                                 <Row
                                     key={`${f.placeType}:${f.placeId}`}
-                                    icon={
-                                        <Star className="size-[18px] fill-accent text-accent" />
+                                    icon={<FavouriteIcon favourite={f} />}
+                                    iconClassName={
+                                        f.mode
+                                            ? STOP_MODE_STYLE[f.mode].bgClass
+                                            : undefined
                                     }
                                     title={f.label}
-                                    subtitle={subtitleOf(f)}
                                     onClick={() => pick(f)}
                                     trailing={
                                         <button
@@ -257,7 +289,6 @@ export function LocationSearchSheet({
                                     key={`${r.placeType}:${r.placeId}`}
                                     icon={<Clock className="size-[18px]" />}
                                     title={r.label}
-                                    subtitle={subtitleOf(r)}
                                     onClick={() => pick(r)}
                                 />
                             ))}
@@ -273,6 +304,30 @@ export function LocationSearchSheet({
                                     title={p.mainText ?? p.description}
                                     subtitle={p.secondaryText ?? undefined}
                                     onClick={() => pickPrediction(p.placeId)}
+                                    trailing={
+                                        <button
+                                            type="button"
+                                            aria-label={
+                                                isStarred(p.placeId)
+                                                    ? `Remove ${p.mainText ?? p.description} from favourites`
+                                                    : `Add ${p.mainText ?? p.description} to favourites`
+                                            }
+                                            aria-pressed={isStarred(p.placeId)}
+                                            onClick={() =>
+                                                starPrediction(p.placeId)
+                                            }
+                                            className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                        >
+                                            <Star
+                                                className={cn(
+                                                    'size-5',
+                                                    isStarred(p.placeId)
+                                                        ? 'fill-accent text-accent'
+                                                        : 'text-zinc-400'
+                                                )}
+                                            />
+                                        </button>
+                                    }
                                 />
                             ))}
                         </Section>
