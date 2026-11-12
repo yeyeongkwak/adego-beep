@@ -6,19 +6,10 @@ import { MapPin, Star } from 'lucide-react'
 import { useFavourites } from '@/hooks/useFavourites'
 import { useStopArrival } from '@/hooks/useStopArrival'
 import { formatArrival } from '@/util/arrival'
+import { routeUrl } from '@/util/route'
+import { toPlaceFavourite } from '@/util/favourite'
 import { STOP_MODE_STYLE, type Favourite, type Stop } from '@/types/common'
 import type { PickedLocation } from '@/types/route'
-
-// Google gives no id for a picked place, so the coords are its id.
-export const toPlaceFavourite = (
-    place: NonNullable<PickedLocation>
-): Favourite => ({
-    placeType: 'place',
-    placeId: `${place.lat.toFixed(5)},${place.lng.toFixed(5)}`,
-    label: place.label,
-    lat: place.lat,
-    lng: place.lng,
-})
 
 const toStop = (f: Favourite): Stop => ({
     id: f.placeId,
@@ -107,22 +98,13 @@ const Row = ({
 const PlaceRow = ({ place }: { place: Favourite }) => {
     const router = useRouter()
     const { remove } = useFavourites()
-    // No origin in the URL, so the route screen starts from the user's location.
-    const goThere = () => {
-        const params = new URLSearchParams({
-            destLat: String(place.lat),
-            destLng: String(place.lng),
-            destLabel: place.label,
-        })
-        router.push(`/route?${params}`)
-    }
     return (
         <Row
             icon={<MapPin className="size-4 text-alert" />}
             iconClass="bg-alert/10"
             title={place.label}
             subtitle="Find a route from here"
-            onClick={goThere}
+            onClick={() => router.push(routeUrl(place))}
             onRemove={() => remove('place', place.placeId)}
         />
     )

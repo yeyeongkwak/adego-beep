@@ -17,6 +17,7 @@ import { StopList, StopArrivalsPanel } from '@/components/ui/home'
 import { FavouritesList } from '@/components/ui/favourites'
 import { LocationSearchSheet } from '@/components/ui/location-search-sheet'
 import type { PickedLocation } from '@/types/route'
+import { routeUrl } from '@/util/route'
 
 const RECENT_STOPS: Stop[] = [
     {
@@ -60,13 +61,7 @@ export function HomeSheet({
     // Picking a destination from search jumps to the route planner with that
     // place preset as the destination.
     const goToRoute = (place: PickedLocation) => {
-        if (!place) return
-        const params = new URLSearchParams({
-            destLat: String(place.lat),
-            destLng: String(place.lng),
-            destLabel: place.label,
-        })
-        router.push(`/route?${params}`)
+        if (place) router.push(routeUrl(place))
     }
 
     const isExpanded = activeSnapPoint === MAX_SNAP_POINT

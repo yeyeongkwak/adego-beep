@@ -1,6 +1,6 @@
 import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
-import { distanceMeters } from '@/lib/utils'
+import { distanceMeters } from '@/util/map/distance'
 import type { Stop, StopMode } from '@/types/common'
 
 // GTFS route_type -> our stop icon/color grouping.

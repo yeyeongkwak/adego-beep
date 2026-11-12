@@ -1,5 +1,5 @@
 import { Check, TriangleAlert, Zap } from 'lucide-react'
-import { BusLeg, Journey, LatLng } from '@/types/route'
+import { BusLeg, Journey, LatLng, PickedLocation } from '@/types/route'
 
 // City Connector loops. Free for everyone.
 const FREE_BUSES = new Set(['98A', '98C', '99A', '99C'])
@@ -89,4 +89,19 @@ export function delayStatus(leg: Pick<BusLeg, 'live' | 'delayMin'>) {
         label: 'On time',
         className: 'text-sky-600 dark:text-sky-400',
     }
+}
+
+type Endpoint = NonNullable<PickedLocation>
+
+// With no origin, the route screen starts from the user's location.
+export function routeUrl(destination: Endpoint, origin?: Endpoint | null) {
+    const params = new URLSearchParams()
+    const put = (prefix: string, at: Endpoint) => {
+        params.set(`${prefix}Lat`, String(at.lat))
+        params.set(`${prefix}Lng`, String(at.lng))
+        params.set(`${prefix}Label`, at.label)
+    }
+    if (origin) put('origin', origin)
+    put('dest', destination)
+    return `/route?${params}`
 }

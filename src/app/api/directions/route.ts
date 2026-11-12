@@ -5,7 +5,7 @@ import { getStopArrivals } from '@/lib/arrivals/stopArrivals'
 import { getBlockTripIds } from '@/lib/arrivals/block'
 import { findVehicleForTrips, getTripUpdates } from '@/lib/arrivals/realtime'
 import { getTripCalls, nearestIndex, type TripCall } from '@/lib/tripStops'
-import { distanceMeters } from '@/lib/utils'
+import { distanceMeters } from '@/util/map/distance'
 import type { StopMode } from '@/types/common'
 import type {
     GoogleRoute,

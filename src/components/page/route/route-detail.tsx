@@ -23,7 +23,7 @@ import { useWatchedLocation } from '@/hooks/useGeolocation'
 import { useRideStatuses } from '@/hooks/useRideStatus'
 import { decodePolyline } from '@/util/map/polyline'
 import { formatArrival } from '@/util/arrival'
-import { delayStatus, fareNote } from '@/util/route'
+import { delayStatus, fareNote, routeUrl } from '@/util/route'
 import { ModeIcon } from './common'
 
 const RouteBadge = ({ leg }: { leg: BusLeg }) => (
@@ -270,17 +270,13 @@ export function RouteDetail({ journey }: { journey: Journey }) {
     const cancelled = rides.filter((r) => statusOf(r)?.cancelled)
 
     const findAnother = () => {
-        const params = new URLSearchParams({
-            destLat: String(journey.destination.lat),
-            destLng: String(journey.destination.lng),
-            destLabel: journey.destination.name,
-        })
-        if (!userLocation) {
-            params.set('originLat', String(journey.origin.lat))
-            params.set('originLng', String(journey.origin.lng))
-            params.set('originLabel', journey.origin.name)
-        }
-        router.push(`/route?${params}`)
+        const { origin, destination } = journey
+        router.push(
+            routeUrl(
+                { label: destination.name, ...destination },
+                userLocation ? null : { label: origin.name, ...origin }
+            )
+        )
     }
 
     return (
