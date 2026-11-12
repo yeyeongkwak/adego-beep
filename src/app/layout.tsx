@@ -1,34 +1,62 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import { Providers } from './providers'
+import { Analytics } from '@vercel/analytics/next'
+import { NavigationFooter } from '@/components/ui/navigation-footer'
 
 const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin'],
+    variable: '--font-geist-sans',
+    subsets: ['latin'],
 })
 
 const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
-  subsets: ['latin'],
+    variable: '--font-geist-mono',
+    subsets: ['latin'],
 })
 
 export const metadata: Metadata = {
-  title: 'Adego Beep',
-  description: 'More accurate bus guidance in Adelaide',
+    title: {
+        default: 'Adelaide Go Beep',
+        template: '%s | Adelaide Go Beep',
+    },
+    description:
+        'Accurate real-time bus arrivals for Adelaide public transport',
+    applicationName: 'Adego Beep',
+    appleWebApp: {
+        capable: true,
+        title: 'Adego Beep',
+        statusBarStyle: 'default',
+    },
+    icons: {
+        icon: [
+            { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+        ],
+        apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    },
 }
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode
+    children: React.ReactNode
 }>) {
-  return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
-  )
+    return (
+        <html lang="en">
+            <body
+                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+            >
+                <Providers>
+                    <div className="min-h-dvh bg-gray-200">
+                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 shadow-xl pb-16">
+                            {children}
+                        </div>
+                    </div>
+                    <NavigationFooter />
+                </Providers>
+                <Analytics />
+            </body>
+        </html>
+    )
 }

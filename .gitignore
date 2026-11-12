@@ -46,4 +46,8 @@ next-env.d.ts
 .claude/
 .serena/
 
+.agents/
+.aider-desk/
+skills-lock.json
+
 /script/google_transit
