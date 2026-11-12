@@ -24,7 +24,12 @@ Tailwind + shadcn/ui, Yarn 4.
   `util/map/distance`. Safe on client and server.
 - `src/lib` — server-side code (Supabase, GTFS, arrivals). `lib/utils.ts`
   only holds shadcn's `cn`.
-- `src/hooks` — React hooks. `src/types` — shared types.
+- `src/hooks` — React hooks.
+- `src/types/<what>` — types grouped by what the data is, not by page:
+  `geo` (LatLng, MapBounds), `place` (stops, favourites, picked places),
+  `journey` (route results), `arrival` (timetable + live feed), `google`
+  (raw Google API shapes). Only types here; constants and functions go to
+  `src/util`. Import from the file directly, no `index.ts` barrel.
 - `src/components/ui` — shared components; `src/components/page/<page>` —
   components for one page.
 - A helper used in two or more files goes in the shared file for its area

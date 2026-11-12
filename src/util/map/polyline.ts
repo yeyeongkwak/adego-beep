@@ -1,4 +1,4 @@
-import type { LatLng } from '@/types/route'
+import type { LatLng } from '@/types/geo'
 
 // Google's encoded polyline format -> points.
 // https://developers.google.com/maps/documentation/utilities/polylinealgorithm

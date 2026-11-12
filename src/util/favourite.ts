@@ -1,5 +1,4 @@
-import type { Favourite } from '@/types/common'
-import type { PickedLocation } from '@/types/route'
+import type { Favourite, PickedLocation } from '@/types/place'
 
 // Google gives no id for a picked place, so the coords are its id.
 export const toPlaceFavourite = (

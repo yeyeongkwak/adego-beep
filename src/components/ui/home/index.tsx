@@ -1,6 +1,6 @@
-import { Stop } from '@/types/common'
+import type { Stop } from '@/types/place'
+import { STOP_MODE_STYLE } from '@/util/stopMode'
 import { MapPin, ArrowLeft, Star } from 'lucide-react'
-import { STOP_MODE_STYLE } from '@/types/common'
 import { Button } from '@/components/ui/button'
 import { useStopArrival } from '@/hooks/useStopArrival'
 import { useFavourites } from '@/hooks/useFavourites'

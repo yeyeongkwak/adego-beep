@@ -7,7 +7,8 @@ import {
     PREVIEW_SNAP_POINT,
 } from '@/components/page/home/home-sheet'
 import { useNearbyStops } from '@/hooks/useNearbyStops'
-import type { MapBounds, Stop } from '@/types/common'
+import type { MapBounds } from '@/types/geo'
+import type { Stop } from '@/types/place'
 
 // Adelaide CBD — fallback center when location is denied/unavailable.
 const ADELAIDE_CENTER = { lat: -34.9285, lng: 138.6007 }

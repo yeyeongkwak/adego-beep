@@ -7,7 +7,7 @@
 */
 
 import { useCallback, useEffect, useState } from 'react'
-import { Coords } from '@/types/common'
+import type { LatLng } from '@/types/geo'
 
 const OPTIONS: PositionOptions = {
     enableHighAccuracy: false,
@@ -15,12 +15,12 @@ const OPTIONS: PositionOptions = {
 }
 
 export function useGeolocation() {
-    const [location, setLocation] = useState<Coords | null>(null)
+    const [location, setLocation] = useState<LatLng | null>(null)
     const [denied, setDenied] = useState(false)
 
     // Resolves with coords on success, or null if unavailable/denied. Never
     // rejects, so callers can `const c = await request()` and branch on null.
-    const request = useCallback((): Promise<Coords | null> => {
+    const request = useCallback((): Promise<LatLng | null> => {
         if (typeof navigator === 'undefined' || !('geolocation' in navigator)) {
             return Promise.resolve(null)
         }
@@ -51,7 +51,7 @@ export function useGeolocation() {
 // Follows the user while mounted (e.g. mid-journey on the detail map). Null
 // until the first fix, or for good if permission is denied.
 export function useWatchedLocation() {
-    const [location, setLocation] = useState<Coords | null>(null)
+    const [location, setLocation] = useState<LatLng | null>(null)
 
     useEffect(() => {
         if (!('geolocation' in navigator)) return

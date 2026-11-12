@@ -11,13 +11,9 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import type {
-    BusLeg,
-    Journey,
-    LatLng,
-    StopArrival,
-    WalkLeg,
-} from '@/types/route'
+import type { BusLeg, Journey, WalkLeg } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
+import type { StopArrival } from '@/types/arrival'
 import { RouteMap } from './route-map'
 import { useWatchedLocation } from '@/hooks/useGeolocation'
 import { useRideStatuses } from '@/hooks/useRideStatus'

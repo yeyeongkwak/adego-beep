@@ -3,7 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { journeyId } from '@/lib/journeyId'
 import { createPublicClient, createSecretClient } from '@/lib/supabase'
 import { getTripStops, rideStops } from '@/lib/tripStops'
-import type { Journey, JourneyLeg } from '@/types/route'
+import type { Journey, JourneyLeg } from '@/types/journey'
 
 /* Saves a journey the user opened from the route list and returns its id, so
 /route/<id> reopens it later on any device. The id is computed here, never

@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StopArrivalsPanel } from '@/components/ui/home'
 import { FavouritePlaces, FavouriteStops } from '@/components/ui/favourites'
-import type { Stop } from '@/types/common'
+import type { Stop } from '@/types/place'
 
 export function FavouriteScreen() {
     const [stop, setStop] = useState<Stop | null>(null)

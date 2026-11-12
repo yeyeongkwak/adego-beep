@@ -5,7 +5,7 @@ import type {
     StopArrivalUpdate,
     VehiclePosition,
     VehicleSnapshot,
-} from '@/types/route'
+} from '@/types/arrival'
 
 // Adelaide Metro live trip updates. One big file (~240KB) for all buses.
 

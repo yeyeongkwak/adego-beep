@@ -9,7 +9,7 @@
 // instances share one source of truth.
 
 import { useCallback, useSyncExternalStore } from 'react'
-import type { Recent } from '@/types/common'
+import type { Recent } from '@/types/place'
 import { createLocalListStore, placeKey } from '@/util/localStore'
 
 const MAX_RECENTS = 10

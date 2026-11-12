@@ -3,7 +3,7 @@
 // relying on a long staleTime like useNearbyStops does.
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { StopArrival } from '@/types/route'
+import type { StopArrival } from '@/types/arrival'
 
 const REFETCH_INTERVAL_MS = 30_000
 

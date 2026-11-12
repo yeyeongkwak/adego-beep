@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { LatLng, RouteStop } from '@/types/route'
+import type { LatLng } from '@/types/geo'
+import type { RouteStop } from '@/types/journey'
 import { haversineKm } from '@/util/map/distance'
 
 // We keep stopSequence so a saved ride can find the second last stop.

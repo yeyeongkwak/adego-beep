@@ -1,5 +1,7 @@
 import { Check, TriangleAlert, Zap } from 'lucide-react'
-import { BusLeg, Journey, LatLng, PickedLocation } from '@/types/route'
+import type { BusLeg, Journey } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
+import type { PickedLocation } from '@/types/place'
 
 // City Connector loops. Free for everyone.
 const FREE_BUSES = new Set(['98A', '98C', '99A', '99C'])

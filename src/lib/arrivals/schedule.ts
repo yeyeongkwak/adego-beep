@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { ScheduledCall } from '@/types/route'
+import type { ScheduledCall } from '@/types/arrival'
 
 // Scheduled calls at a stop from the static GTFS tables, resolved to absolute
 // epochs. Handles the GTFS service-day model: times run past 24:00:00 and a

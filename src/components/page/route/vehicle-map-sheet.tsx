@@ -16,7 +16,8 @@ import {
     DrawerDescription,
     DrawerTitle,
 } from '@/components/ui/drawer'
-import type { BusLeg, Journey, LatLng, RouteStop } from '@/types/route'
+import type { BusLeg, Journey, RouteStop } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
 import { RouteMap } from './route-map'
 
 type VehicleOut = {

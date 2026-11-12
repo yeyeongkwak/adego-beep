@@ -8,7 +8,8 @@ import {
     useMap,
 } from '@vis.gl/react-google-maps'
 import { MapPin } from 'lucide-react'
-import type { BusLeg, Journey, LatLng, WalkLeg } from '@/types/route'
+import type { BusLeg, Journey, WalkLeg } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
 import { ModeIcon } from './common'
 import { haversineKm } from '@/util/map/distance'
 import { decodePolyline } from '@/util/map/polyline'

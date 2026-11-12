@@ -8,7 +8,8 @@ import {
     useMap,
 } from '@vis.gl/react-google-maps'
 import { LocateFixed } from 'lucide-react'
-import type { MapBounds, NearbyStop } from '@/types/common'
+import type { MapBounds } from '@/types/geo'
+import type { NearbyStop } from '@/types/place'
 import { STOP_ICON_URL } from '@/util/map/stopIcons'
 
 const IDLE_DEBOUNCE_MS = 600

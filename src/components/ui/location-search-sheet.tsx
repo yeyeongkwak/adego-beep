@@ -23,8 +23,8 @@ import { usePlacesSearch, type ResolvedPlace } from '@/hooks/usePlacesSearch'
 import { toPlaceFavourite } from '@/util/favourite'
 import { fetchLocationLabel } from '@/util/reverseGeocode'
 import { cn } from '@/lib/utils'
-import { Favourite, STOP_MODE_STYLE } from '@/types/common'
-import { PickedLocation } from '@/types/route'
+import type { Favourite, PickedLocation } from '@/types/place'
+import { STOP_MODE_STYLE } from '@/util/stopMode'
 
 function Row({
     icon,

@@ -3,7 +3,8 @@
 // from sub-metre jitter while panning).
 
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import type { MapBounds, NearbyStop } from '@/types/common'
+import type { MapBounds } from '@/types/geo'
+import type { NearbyStop } from '@/types/place'
 
 const round4 = (n: number) => Math.round(n * 10000) / 10000
 

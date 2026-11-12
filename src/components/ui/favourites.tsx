@@ -8,8 +8,8 @@ import { useStopArrival } from '@/hooks/useStopArrival'
 import { formatArrival } from '@/util/arrival'
 import { routeUrl } from '@/util/route'
 import { toPlaceFavourite } from '@/util/favourite'
-import { STOP_MODE_STYLE, type Favourite, type Stop } from '@/types/common'
-import type { PickedLocation } from '@/types/route'
+import type { Favourite, Stop, PickedLocation } from '@/types/place'
+import { STOP_MODE_STYLE } from '@/util/stopMode'
 
 const toStop = (f: Favourite): Stop => ({
     id: f.placeId,

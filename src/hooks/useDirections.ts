@@ -8,7 +8,8 @@ prediction arrives). A request-sequence guard drops stale responses.
 */
 
 import { useEffect, useRef, useState } from 'react'
-import { PickedLocation, Journey, TripTime } from '@/types/route'
+import type { PickedLocation } from '@/types/place'
+import type { Journey, TripTime } from '@/types/journey'
 
 const REFRESH_MS = 30_000 // 30 seconds
 const GOOGLE_EVERY_MS = 5 * 60_000 // ask Google for new options after this long

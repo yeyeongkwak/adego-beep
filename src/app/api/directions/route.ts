@@ -6,20 +6,15 @@ import { getBlockTripIds } from '@/lib/arrivals/block'
 import { findVehicleForTrips, getTripUpdates } from '@/lib/arrivals/realtime'
 import { getTripCalls, nearestIndex, type TripCall } from '@/lib/tripStops'
 import { distanceMeters } from '@/util/map/distance'
-import type { StopMode } from '@/types/common'
+import type { StopMode } from '@/types/place'
+import type { GoogleRoute, GoogleStop, TransitStep } from '@/types/google'
+import type { BusLeg, Journey, JourneyLeg, RouteStop } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
 import type {
-    GoogleRoute,
-    BusLeg,
-    Journey,
-    JourneyLeg,
-    LatLng,
-    RouteStop,
     StopArrival,
     StopArrivalUpdate,
     VehiclePosition,
-    GoogleStop,
-    TransitStep,
-} from '@/types/route'
+} from '@/types/arrival'
 
 // Google finds the route. Then we change each ride's times to our GTFS times
 // (live or timetable). If we can't match a ride, we keep Google's time.

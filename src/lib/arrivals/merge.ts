@@ -4,7 +4,7 @@ import type {
     ScheduledCall,
     StopArrival,
     MergedRow,
-} from '@/types/route'
+} from '@/types/arrival'
 
 // Use the timetable, and change the time when we have a live one.
 

@@ -1,4 +1,4 @@
-import type { StopMode } from '@/types/common'
+import type { StopMode } from '@/types/place'
 
 export function buildStopIconUrl(
     fillColor: string,

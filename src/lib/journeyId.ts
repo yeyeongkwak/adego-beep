@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
-import type { BusLeg, Journey, LatLng } from '@/types/route'
+import type { BusLeg, Journey } from '@/types/journey'
+import type { LatLng } from '@/types/geo'
 
 /* Stable id for a saved journey: same origin, destination and rides -> same
 id, whoever saves it, so re-tapping a card reuses its row. Hashed so the URL

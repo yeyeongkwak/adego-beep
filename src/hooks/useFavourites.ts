@@ -10,7 +10,7 @@
 // place instantly reflects everywhere, plus cross-tab sync.
 
 import { useCallback, useSyncExternalStore } from 'react'
-import type { Favourite } from '@/types/common'
+import type { Favourite } from '@/types/place'
 import { createLocalListStore, placeKey } from '@/util/localStore'
 
 const store = createLocalListStore<Favourite>('adego:favourites')

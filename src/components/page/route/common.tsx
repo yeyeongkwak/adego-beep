@@ -1,5 +1,5 @@
-import { BusLeg } from '@/types/route'
-import { STOP_MODE_STYLE } from '@/types/common'
+import type { BusLeg } from '@/types/journey'
+import { STOP_MODE_STYLE } from '@/util/stopMode'
 
 // Bus / tram / train glyph for a ride leg, matching the stop icons on the map.
 export const ModeIcon = ({

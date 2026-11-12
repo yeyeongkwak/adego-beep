@@ -1,5 +1,5 @@
 import { createSecretClient } from '@/lib/supabase'
-import type { Journey } from '@/types/route'
+import type { Journey } from '@/types/journey'
 
 // Matches what journeyId() produces; anything else can't be a row.
 const ID_RE = /^[A-Za-z0-9_-]{16}$/

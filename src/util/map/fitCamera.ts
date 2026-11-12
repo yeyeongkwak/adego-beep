@@ -1,4 +1,4 @@
-import type { LatLng } from '@/types/route'
+import type { LatLng } from '@/types/geo'
 
 export type Padding = {
     top: number

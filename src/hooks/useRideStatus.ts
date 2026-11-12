@@ -1,7 +1,8 @@
 // Live status of the buses in a saved journey. No Google call, so it's free.
 
 import { useQueries } from '@tanstack/react-query'
-import type { BusLeg, StopArrival } from '@/types/route'
+import type { BusLeg } from '@/types/journey'
+import type { StopArrival } from '@/types/arrival'
 
 const REFETCH_INTERVAL_MS = 30_000
 

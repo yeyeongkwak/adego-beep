@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PlacePrediction } from '@/types/route'
+import type { PlacePrediction } from '@/types/google'
 
 /* Places Autocomplete (New), proxied server-side so GOOGLE_MAPS_API_KEY stays
  off the client. Results are restricted to the Adelaide metro area: a

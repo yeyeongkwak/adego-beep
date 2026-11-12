@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { StopArrival } from '@/types/route'
+import type { StopArrival } from '@/types/arrival'
 import { getLiveArrivals } from './realtime'
 import { adelaideNow, getScheduledCalls } from './schedule'
 import { mergeArrivals } from './merge'

@@ -1,7 +1,7 @@
 import { createPublicClient } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
 import { distanceMeters } from '@/util/map/distance'
-import type { Stop, StopMode } from '@/types/common'
+import type { Stop, StopMode } from '@/types/place'
 
 // GTFS route_type -> our stop icon/color grouping.
 const ROUTE_TYPE_MODE: Record<number, StopMode> = {

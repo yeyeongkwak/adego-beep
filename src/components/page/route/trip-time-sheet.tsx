@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/drawer'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { TripTime } from '@/types/route'
+import type { TripTime } from '@/types/journey'
 
 // Native inputs want local 'YYYY-MM-DD' / 'HH:mm', not ISO/UTC.
 const toLocal = (d: Date) =>
