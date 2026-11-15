@@ -80,10 +80,23 @@ export async function GET(request: Request) {
             picture: profile.picture ?? null,
         })
         if (insertError) {
+            console.error(
+                '[auth/callback] app_users insert failed',
+                insertError
+            )
             return NextResponse.redirect(
                 new URL('/profile?error=insert', origin)
             )
         }
+    } else {
+        await supabase
+            .from('app_users')
+            .update({
+                name: profile.name ?? null,
+                picture: profile.picture ?? null,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', userId)
     }
 
     const jwt = await signAppSession({

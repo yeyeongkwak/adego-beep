@@ -106,6 +106,9 @@ export function HomeSheet({
                 activeSnapPoint={activeSnapPoint}
                 setActiveSnapPoint={onSnapPointChange}
                 modal={false}
+                // Always-open home sheet: vaul's iOS body{position:fixed}
+                // makes the map look foggy in Add-to-Home-Screen / Safari.
+                noBodyStyles
                 dismissible
             >
                 <DrawerContent

@@ -36,7 +36,7 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full max-w-md items-center justify-between border-t border-zinc-200 bg-white px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] dark:border-zinc-700 dark:bg-zinc-950">
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full max-w-md items-center justify-between border-t border-zinc-200 bg-white px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
             {NAVIGATION_ITEMS.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname.startsWith(item.href)

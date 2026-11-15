@@ -127,7 +127,8 @@ export function HomeMap({
 
     return (
         <APIProvider apiKey={apiKey}>
-            <div className="relative h-full w-full">
+            {/* Own compositor layer so iOS PWA + drawer transform don't blur tiles */}
+            <div className="relative h-full w-full transform-gpu backface-hidden">
                 <Map
                     mapId={process.env.NEXT_PUBLIC_GOOGLE_MAPS_ID}
                     className="h-full w-full"
