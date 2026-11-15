@@ -418,7 +418,7 @@ export function RouteScreen() {
                         aria-pressed={!when}
                         onClick={() => setWhen(null)}
                         className={cn(
-                            'flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-sm font-semibold transition-colors active:scale-[0.97]',
+                            'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold transition-colors active:scale-[0.97]',
                             !when
                                 ? 'bg-white text-primary'
                                 : 'bg-white/10 text-white hover:bg-white/20'
@@ -436,7 +436,7 @@ export function RouteScreen() {
                         }
                         onClick={() => setTimeSheetOpen(true)}
                         className={cn(
-                            'flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-full px-2.5 text-sm font-semibold tabular-nums transition-colors active:scale-[0.97]',
+                            'flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold tabular-nums transition-colors active:scale-[0.97]',
                             when
                                 ? 'bg-accent text-primary'
                                 : 'bg-white/10 text-white hover:bg-white/20'
@@ -454,7 +454,7 @@ export function RouteScreen() {
                         aria-pressed={freeOnly}
                         onClick={() => setFreeOnly((v) => !v)}
                         className={cn(
-                            'flex h-9 shrink-0 items-center rounded-full px-3.5 text-sm font-semibold whitespace-nowrap transition-colors active:scale-[0.97]',
+                            'flex h-9 shrink-0 items-center rounded-lg px-3.5 text-sm font-semibold whitespace-nowrap transition-colors active:scale-[0.97]',
                             freeOnly
                                 ? 'bg-accent text-primary'
                                 : 'bg-white/10 text-white hover:bg-white/20'
