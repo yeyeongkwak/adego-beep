@@ -128,16 +128,31 @@ export function HomeSheet({
                     <div
                         ref={scrollRef}
                         className={cn(
-                            'scrollbar-hide flex min-h-0 flex-1 flex-col gap-4 overscroll-contain px-4 pt-3 pb-18',
-                            isExpanded ? 'overflow-y-auto' : 'overflow-hidden'
+                            'scrollbar-hide relative flex min-h-0 flex-1 flex-col gap-4 overscroll-contain px-4 pt-3 pb-18',
+                            selectedStop || !isExpanded
+                                ? 'overflow-hidden'
+                                : 'overflow-y-auto'
                         )}
                     >
                         {selectedStop ? (
-                            <StopArrivalsPanel
-                                stop={selectedStop}
-                                onBack={() => onSelectStop(null)}
-                                isExpanded={isExpanded}
-                            />
+                            // Vaul keeps the drawer at 100vh and only
+                            // translateY-slides it. --snap-point-height is that
+                            // offset, not the visible height — use the snap
+                            // fraction instead so empty copy can center.
+                            <div
+                                className="absolute inset-x-0 top-0 flex flex-col px-4 pt-3 pb-18"
+                                style={{
+                                    height:
+                                        typeof activeSnapPoint === 'number'
+                                            ? `${activeSnapPoint * 100}dvh`
+                                            : '50dvh',
+                                }}
+                            >
+                                <StopArrivalsPanel
+                                    stop={selectedStop}
+                                    onBack={() => onSelectStop(null)}
+                                />
+                            </div>
                         ) : (
                             <>
                                 <div className="relative">
