@@ -365,7 +365,7 @@ export function RouteScreen() {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
-            <header className="shrink-0 space-y-2 bg-primary px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3">
+            <header className="shrink-0 space-y-2 bg-primary px-4 pt-4 pb-3">
                 <h1 className="sr-only">Route</h1>
                 <div className="flex items-center gap-2 rounded-2xl bg-white p-2 dark:bg-zinc-900">
                     <div className="flex flex-col items-center gap-1 pl-2">

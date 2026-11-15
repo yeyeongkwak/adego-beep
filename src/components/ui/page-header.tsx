@@ -7,7 +7,7 @@ export function PageHeader({
     subtitle?: string
 }) {
     return (
-        <header className="shrink-0 bg-primary px-4 pt-[max(1.25rem,env(safe-area-inset-top))] pb-4">
+        <header className="shrink-0 bg-primary px-4 pt-5 pb-4">
             <p className="text-[11px] font-semibold tracking-[0.16em] text-white/65 uppercase">
                 Adelaide Go Beep
             </p>

@@ -18,23 +18,6 @@ import { FavouritesList } from '@/components/ui/favourites'
 import { LocationSearchSheet } from '@/components/ui/location-search-sheet'
 import { routeUrl } from '@/util/route'
 
-const RECENT_STOPS: Stop[] = [
-    {
-        id: 'rec-1',
-        name: 'Henley Beach',
-        code: 'HEN01',
-        lat: -34.9161,
-        lng: 138.4964,
-    },
-    {
-        id: 'rec-2',
-        name: 'Glenelg',
-        code: 'GLE01',
-        lat: -34.9805,
-        lng: 138.5156,
-    },
-]
-
 export const SNAP_POINTS = [0, 0.5, 0.9]
 export const PREVIEW_SNAP_POINT = SNAP_POINTS[1]
 export const MAX_SNAP_POINT = SNAP_POINTS[SNAP_POINTS.length - 1]
@@ -179,9 +162,6 @@ export function HomeSheet({
                                         <TabsTrigger value="favourites">
                                             Favourites
                                         </TabsTrigger>
-                                        <TabsTrigger value="recent">
-                                            Recent
-                                        </TabsTrigger>
                                     </TabsList>
                                     <TabsContent value="nearby">
                                         <StopList
@@ -192,12 +172,6 @@ export function HomeSheet({
                                     <TabsContent value="favourites">
                                         <FavouritesList
                                             onSelectStop={onSelectStop}
-                                        />
-                                    </TabsContent>
-                                    <TabsContent value="recent">
-                                        <StopList
-                                            stops={RECENT_STOPS}
-                                            onSelect={onSelectStop}
                                         />
                                     </TabsContent>
                                 </Tabs>

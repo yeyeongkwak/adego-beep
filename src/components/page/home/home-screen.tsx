@@ -90,7 +90,7 @@ export function HomeScreen() {
                 <div className="map-skeleton relative h-full w-full" />
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex flex-col items-start gap-2 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex flex-col items-start gap-2 p-4">
                 <span className="pointer-events-auto inline-block rounded-full bg-primary px-4 py-2 text-lg font-extrabold tracking-tight text-white shadow-lg shadow-primary/25">
                     Adelaide Go Beep
                 </span>

@@ -26,7 +26,8 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         title: 'Adelaide Go Beep',
-        statusBarStyle: 'black-translucent',
+        // default = opaque status bar. black-translucent washes the map white.
+        statusBarStyle: 'default',
     },
     icons: {
         icon: [
@@ -56,7 +57,7 @@ export default function RootLayout({
             >
                 <Providers>
                     <div className="h-dvh overflow-hidden bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
-                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
+                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-16 shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
                             {children}
                         </div>
                     </div>

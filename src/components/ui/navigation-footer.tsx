@@ -36,7 +36,9 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full max-w-md items-center justify-between border-t border-zinc-200 bg-white px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
+        // Don't pad with safe-area here: on iOS standalone, fixed bottom bars
+        // are already inset, so env(safe-area-inset-bottom) doubles the gap.
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex h-16 w-full max-w-md items-center justify-between border-t border-zinc-200 bg-white px-2 supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
             {NAVIGATION_ITEMS.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname.startsWith(item.href)
@@ -46,7 +48,7 @@ export function NavigationFooter() {
                         key={item.id}
                         onClick={() => router.push(item.href)}
                         className={cn(
-                            'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors active:scale-95',
+                            'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 transition-colors active:scale-95',
                             isActive
                                 ? 'text-primary'
                                 : 'text-zinc-500 dark:text-zinc-400'
