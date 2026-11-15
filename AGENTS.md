@@ -11,6 +11,8 @@ Tailwind + shadcn/ui, Yarn 4.
 - `yarn lint` / `yarn prettier --check .`
 - `yarn ci:verify` — lint + format + build (same as CI)
 - `yarn gtfs:update` — reload GTFS into Supabase (GitHub Actions runs it daily)
+- `yarn db:types` — regenerate `src/types/database.ts` from the remote
+  schema (`supabase login` once first)
 
 ## Before saying a change is done
 
@@ -28,8 +30,10 @@ Tailwind + shadcn/ui, Yarn 4.
 - `src/types/<what>` — types grouped by what the data is, not by page:
   `geo` (LatLng, MapBounds), `place` (stops, favourites, picked places),
   `journey` (route results), `arrival` (timetable + live feed), `google`
-  (raw Google API shapes). Only types here; constants and functions go to
-  `src/util`. Import from the file directly, no `index.ts` barrel.
+  (raw Google API shapes), `auth` (app session), `database` (generated
+  Supabase schema — `yarn db:types`). Only types here;
+  constants and functions go to `src/util`. Import from the file directly,
+  no `index.ts` barrel.
 - `src/components/ui` — shared components; `src/components/page/<page>` —
   components for one page.
 - A helper used in two or more files goes in the shared file for its area
@@ -68,9 +72,12 @@ Tailwind + shadcn/ui, Yarn 4.
 
 ## Favourites and auth
 
-- Favourites and recents are in localStorage (`src/util/localStore.ts`).
-  The hooks are built so a Supabase Auth branch (`favorite_locations` table)
-  can be added later without changing the UI.
+- Direct Google OAuth + JWT cookie (`src/app/api/auth/*`, `src/util/oauthSession.ts`).
+  Users live in `app_users` (not Supabase Auth). No `proxy.ts`.
+- Favourites: localStorage when signed out; when signed in, our API
+  (`/api/favourites`, secret key) reads/writes `favorite_locations` by
+  `app_users.id`. Local favourites move into the account on first sign-in.
+  Recents stay in localStorage.
 
 ## Git
 
