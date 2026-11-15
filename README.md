@@ -1,58 +1,62 @@
-# Adego Beep
+# Adelaide Go Beep
 
-Adelaide transit helper — rebuild.
+Adelaide public transport app. Google Routes plans the trip; Adelaide Metro
+GTFS (Supabase) and GTFS-Realtime give live times.
+
+## Features
+
+- **Home** — map, nearby stops, live departures, place search
+- **Route** — A→B journeys, leave now or later, free-bus filter, walk + ride
+  breakdown, live vehicle on the map for a ride
+- **Favourites** — save places and stops (device storage when signed out;
+  account when signed in — the two stores are separate)
+- **Recent** — recent places on this device
+- **Profile** — Google sign-in / sign-out (JWT session cookie, not Supabase Auth)
+- **PWA** — installable (`manifest`, theme colour)
 
 ## Stack
 
-- Next.js 15 (App Router) + TypeScript + Tailwind
-- Supabase (Postgres + Auth later)
-- Adelaide Metro GTFS static feed
-- **Yarn 4** (package manager)
+Next.js 16, React 19, TanStack Query, Tailwind + shadcn/ui, Yarn 4, Supabase
+Postgres, Google Maps / Routes / Places.
 
 ## Setup
 
 ```bash
-# Yarn 4 (Corepack)
 corepack enable
-
-cp .env.example .env.local
-# fill SUPABASE keys
-
 yarn install
-yarn add @supabase/supabase-js adm-zip csv-parse
-yarn add -D tsx @types/adm-zip
-
-yarn dev
+# create .env.local with the vars below
+yarn dev                     # http://localhost:3000
 ```
 
-## GTFS update (local first)
+### Env
 
-1. Run the files in `sql/migrations/` in order in Supabase SQL editor (existing `gtfs_*` tables required).
-    - `swap_gtfs_from_staging()` runs for minutes and can't go through the Data API's request timeout, so
-      `update-gtfs.ts` calls it over a direct Postgres connection — set `SUPABASE_DB_URL` (Dashboard →
-      Project Settings → Database → Connection string) alongside the other env vars.
-2. Set env vars in `.env.local`.
-3. Run:
+| Variable                                    | Used for                                   |
+| ------------------------------------------- | ------------------------------------------ |
+| `NEXT_PUBLIC_SUPABASE_URL`                  | Supabase                                   |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`      | Browser / anon queries                     |
+| `SUPABASE_SECRET_KEY`                       | Favourites API, GTFS import                |
+| `SUPABASE_DB_URL`                           | GTFS staging swap (direct Postgres)        |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`           | Maps in the browser                        |
+| `NEXT_PUBLIC_GOOGLE_MAPS_ID`                | Map ID                                     |
+| `GOOGLE_MAPS_API_KEY`                       | Places / reverse-geocode / Routes (server) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth                               |
+| `SESSION_SECRET`                            | App session JWT                            |
+| `NEXT_PUBLIC_SITE_URL`                      | OAuth redirect origin (prod)               |
 
-```bash
-yarn gtfs:update
-# or: yarn tsx scripts/update-gtfs.ts
-```
+OAuth redirect URI: `{NEXT_PUBLIC_SITE_URL}/api/auth/callback`.
 
-Same hash → skip. New hash → staging → swap → `gtfs_imports` row.
+### Commands
 
-## Scripts
+| Command                     |                                    |
+| --------------------------- | ---------------------------------- |
+| `yarn dev`                  | Dev server                         |
+| `yarn build` / `yarn start` | Production                         |
+| `yarn ci:verify`            | Lint + format check + build        |
+| `yarn gtfs:update`          | Reload static GTFS into Supabase   |
+| `yarn db:types`             | Regenerate `src/types/database.ts` |
 
-| Command            | Description               |
-| ------------------ | ------------------------- |
-| `yarn dev`         | Next dev server           |
-| `yarn build`       | Production build          |
-| `yarn gtfs:update` | Import latest Static GTFS |
+GTFS SQL migrations live in `sql/migrations/` and are run by hand in the
+Supabase SQL editor. GitHub Actions runs `yarn gtfs:update` daily.
 
-## Next steps
-
-1. Confirm staging SQL + one successful import
-2. Fix `geom` / nearby stops
-3. Reduce `gtfs_stops.route_type` dependency in app
-4. `rt_arrivals` retention
-5. Arrival-time next departure logic
+- Folder layout: [STRUCTURE.md](./STRUCTURE.md)
+- Google APIs + GTFS / GitHub Action import: [DATA.md](./DATA.md)
