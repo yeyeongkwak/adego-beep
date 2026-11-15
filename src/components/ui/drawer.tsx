@@ -2,7 +2,8 @@
 
 import * as React from 'react'
 import { Drawer as DrawerPrimitive } from 'vaul'
-import 'vaul/style.css'
+// vaul's package exports omit style.css, so Turbopack can't resolve 'vaul/style.css'.
+import '@/styles/vaul.css'
 
 import { cn } from '@/lib/utils'
 
