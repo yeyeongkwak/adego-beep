@@ -104,10 +104,25 @@ Job (Production environment):
     - `SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL`
     - `SUPABASE_SECRET_KEY`
     - `SUPABASE_DB_URL`
-3. Discord webhooks on build failure / update failure / real success
-   (skipped hash updates do not ping success)
+3. Discord notifications (webhooks below)
 
 Local run needs the same three env vars in `.env.local`.
+
+### Discord notifications
+
+Workflow: `.github/workflows/update-gtfs.yml`. Webhooks are repo secrets on the
+**Production** environment.
+
+| When                                         | Secret                   | Message                        |
+| -------------------------------------------- | ------------------------ | ------------------------------ |
+| Checkout / Node / `yarn install` fails       | `DISCORD_BUILD_WEBHOOK`  | Build failed (before GTFS ran) |
+| `yarn gtfs:update` fails                     | `DISCORD_SCRIPT_WEBHOOK` | GTFS update failed             |
+| Update succeeds **and** the zip hash was new | `DISCORD_SCRIPT_WEBHOOK` | GTFS update successful         |
+
+Same-hash skips set `skipped=true` on the Action output, so Discord does **not**
+get a success ping on quiet days. Embeds link to the GitHub Actions run.
+
+CI (`.github/workflows/ci.yml`) does not post to Discord.
 
 ---
 
