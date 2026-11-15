@@ -22,12 +22,13 @@ export const metadata: Metadata = {
     },
     description:
         'Accurate real-time bus arrivals for Adelaide public transport',
-    applicationName: 'Adego Beep',
+    applicationName: 'Adelaide Go Beep',
     appleWebApp: {
         capable: true,
-        title: 'Adego Beep',
+        title: 'Adelaide Go Beep',
         statusBarStyle: 'default',
     },
+    themeColor: '#002b5c',
     icons: {
         icon: [
             { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -45,7 +46,7 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body
-                className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+                className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
             >
                 <Providers>
                     <div className="min-h-dvh bg-gray-200">

@@ -1,9 +1,10 @@
 import type { Stop } from '@/types/place'
 import { STOP_MODE_STYLE } from '@/util/stopMode'
-import { MapPin, ArrowLeft, Star } from 'lucide-react'
+import { MapPin, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useStopArrival } from '@/hooks/useStopArrival'
 import { useFavourites } from '@/hooks/useFavourites'
+import { FavouriteStar } from '@/components/ui/favourite-star'
 import { formatDistance } from '@/util/map/distance'
 import { formatArrival } from '@/util/arrival'
 
@@ -24,7 +25,7 @@ const StopRow = ({
             variant="ghost"
             onClick={onSelect}
             data-sheet-row
-            className="h-auto w-full justify-start gap-3 rounded-xl p-3"
+            className="h-auto w-full justify-start gap-3 rounded-xl p-3 transition-colors active:bg-zinc-100/80"
         >
             <div
                 className={`rounded-full p-2 ${style?.bgClass ?? 'bg-zinc-100 dark:bg-zinc-800'}`}
@@ -34,15 +35,15 @@ const StopRow = ({
                 />
             </div>
             <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-semibold">{name}</p>
+                <p className="truncate text-sm font-semibold tracking-tight">
+                    {name}
+                </p>
                 <p className="text-xs text-zinc-500 dark:text-zinc-400">
                     {code ? `Stop ${code}` : 'Stop'}
-                    {distanceM != null ? ` · ${distanceM}m` : ''}
+                    {distanceM != null ? ` · ${formatDistance(distanceM)}` : ''}
                 </p>
             </div>
-            {favourited && (
-                <Star className="size-4 shrink-0 fill-accent text-accent" />
-            )}
+            {favourited && <FavouriteStar favourited className="shrink-0" />}
         </Button>
     )
 }
@@ -143,15 +144,9 @@ export const StopArrivalsPanel = ({
                     }
                     aria-pressed={favourited}
                     onClick={toggleFavourite}
-                    className="shrink-0 rounded-full"
+                    className="shrink-0 rounded-full active:scale-90"
                 >
-                    <Star
-                        className={
-                            favourited
-                                ? 'size-5 fill-accent text-accent'
-                                : 'size-5 text-zinc-400'
-                        }
-                    />
+                    <FavouriteStar favourited={favourited} className="size-5" />
                 </Button>
             </div>
 

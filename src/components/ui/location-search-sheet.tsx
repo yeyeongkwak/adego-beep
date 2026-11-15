@@ -7,9 +7,9 @@ import {
     Clock,
     MapPin,
     Navigation,
-    Star,
     X,
 } from 'lucide-react'
+import { FavouriteStarButton } from '@/components/ui/favourite-star'
 import {
     Drawer,
     DrawerContent,
@@ -266,16 +266,13 @@ export function LocationSearchSheet({
                                     title={f.label}
                                     onClick={() => pick(f)}
                                     trailing={
-                                        <button
-                                            type="button"
-                                            aria-label={`Remove ${f.label} from favourites`}
+                                        <FavouriteStarButton
+                                            favourited
+                                            label={`Remove ${f.label} from favourites`}
                                             onClick={() =>
                                                 remove(f.placeType, f.placeId)
                                             }
-                                            className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                        >
-                                            <Star className="size-5 fill-accent text-accent" />
-                                        </button>
+                                        />
                                     }
                                 />
                             ))}
@@ -305,28 +302,17 @@ export function LocationSearchSheet({
                                     subtitle={p.secondaryText ?? undefined}
                                     onClick={() => pickPrediction(p.placeId)}
                                     trailing={
-                                        <button
-                                            type="button"
-                                            aria-label={
+                                        <FavouriteStarButton
+                                            favourited={isStarred(p.placeId)}
+                                            label={
                                                 isStarred(p.placeId)
                                                     ? `Remove ${p.mainText ?? p.description} from favourites`
                                                     : `Add ${p.mainText ?? p.description} to favourites`
                                             }
-                                            aria-pressed={isStarred(p.placeId)}
                                             onClick={() =>
                                                 starPrediction(p.placeId)
                                             }
-                                            className="flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                                        >
-                                            <Star
-                                                className={cn(
-                                                    'size-5',
-                                                    isStarred(p.placeId)
-                                                        ? 'fill-accent text-accent'
-                                                        : 'text-zinc-400'
-                                                )}
-                                            />
-                                        </button>
+                                        />
                                     }
                                 />
                             ))}

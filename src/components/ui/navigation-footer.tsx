@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname, useRouter } from 'next/navigation'
-import { Home, Map, User, Star } from 'lucide-react'
+import { Home, Route, Star, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAVIGATION_ITEMS = [
@@ -15,7 +15,7 @@ const NAVIGATION_ITEMS = [
         id: 'route',
         label: 'Route',
         href: '/route',
-        icon: Map,
+        icon: Route,
     },
     {
         id: 'favourite',
@@ -36,7 +36,7 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        <div className="fixed bottom-0 left-1/2 z-[60] flex -translate-x-1/2 w-full max-w-md h-16 items-center justify-around border-t border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
+        <div className="fixed bottom-0 left-1/2 z-[60] flex h-16 w-full max-w-md -translate-x-1/2 items-center justify-around border-t border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
             {NAVIGATION_ITEMS.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname.startsWith(item.href)
@@ -46,14 +46,34 @@ export function NavigationFooter() {
                         key={item.id}
                         onClick={() => router.push(item.href)}
                         className={cn(
-                            'flex flex-col items-center justify-center gap-1 py-2 px-4 transition-colors',
+                            'flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors active:scale-95',
                             isActive
                                 ? 'text-primary'
-                                : 'text-zinc-600 dark:text-zinc-400'
+                                : 'text-zinc-500 dark:text-zinc-400'
                         )}
                     >
-                        <Icon className="size-6" />
-                        <span className="text-xs font-medium">
+                        <span
+                            className={cn(
+                                'flex size-9 items-center justify-center rounded-xl transition-colors duration-150',
+                                isActive && 'bg-primary/10'
+                            )}
+                        >
+                            <Icon
+                                className="size-[22px]"
+                                strokeWidth={isActive ? 2.4 : 2}
+                                fill={
+                                    isActive && item.id === 'favourite'
+                                        ? 'currentColor'
+                                        : 'none'
+                                }
+                            />
+                        </span>
+                        <span
+                            className={cn(
+                                'text-[11px] tracking-tight',
+                                isActive ? 'font-bold' : 'font-semibold'
+                            )}
+                        >
                             {item.label}
                         </span>
                     </button>
