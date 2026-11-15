@@ -7,6 +7,7 @@ import { useFavourites } from '@/hooks/useFavourites'
 import { FavouriteStar } from '@/components/ui/favourite-star'
 import { formatDistance } from '@/util/map/distance'
 import { formatArrival } from '@/util/arrival'
+import { cn } from '@/lib/utils'
 
 const StopRow = ({
     stop,
@@ -81,11 +82,9 @@ export const StopList = ({
 export const StopArrivalsPanel = ({
     stop,
     onBack,
-    isExpanded,
 }: {
     stop: Stop
     onBack: () => void
-    isExpanded: boolean
 }) => {
     const style = stop.mode ? STOP_MODE_STYLE[stop.mode] : null
     const Icon = style?.icon ?? MapPin
@@ -103,12 +102,16 @@ export const StopArrivalsPanel = ({
             mode: stop.mode,
         })
 
-    const statusWrapClass = isExpanded
-        ? 'flex flex-1 items-center justify-center px-4'
-        : 'px-4 py-10'
+    const statusMessage = error
+        ? 'Unable to load arrivals. Pull to retry.'
+        : loading && arrivals.length === 0
+          ? 'Loading arrivals…'
+          : arrivals.length === 0
+            ? 'No upcoming arrivals right now.'
+            : null
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <div className="flex h-full min-h-0 flex-1 flex-col gap-4">
             <div className="flex shrink-0 items-center gap-3">
                 <Button
                     variant="ghost"
@@ -150,41 +153,33 @@ export const StopArrivalsPanel = ({
                 </Button>
             </div>
 
-            {arrivals.length > 0 && (
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-                    <span className="relative flex size-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                        <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-                    </span>
-                    Live arrivals
-                </div>
-            )}
-
-            {error ? (
-                <div className={statusWrapClass}>
-                    <p className="text-center text-sm text-alert">
-                        Unable to load arrivals. Pull to retry.
-                    </p>
-                </div>
-            ) : loading && arrivals.length === 0 ? (
-                <div className={statusWrapClass}>
-                    <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        Loading arrivals…
-                    </p>
-                </div>
-            ) : arrivals.length === 0 ? (
-                <div className={statusWrapClass}>
-                    <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        No upcoming arrivals right now.
+            {statusMessage ? (
+                <div className="flex min-h-0 flex-1 items-center justify-center px-4">
+                    <p
+                        className={cn(
+                            'text-center text-sm',
+                            error
+                                ? 'text-alert'
+                                : 'text-zinc-500 dark:text-zinc-400'
+                        )}
+                    >
+                        {statusMessage}
                     </p>
                 </div>
             ) : (
-                <div className="space-y-1">
+                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                        <span className="relative flex size-2">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                            <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                        </span>
+                        Live arrivals
+                    </div>
                     {arrivals.map((arrival, i) => (
                         <div
                             key={`${arrival.tripId}-${arrival.stopSequence ?? i}`}
                             data-sheet-row
-                            className={`flex items-center gap-3 rounded-xl p-3`}
+                            className="flex items-center gap-3 rounded-xl p-3"
                         >
                             <span
                                 className="flex h-8 min-w-11 items-center justify-center rounded-md px-2 text-xs font-bold text-white"

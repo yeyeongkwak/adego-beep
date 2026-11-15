@@ -22,7 +22,6 @@ export function FavouriteScreen() {
                     <StopArrivalsPanel
                         stop={stop}
                         onBack={() => setStop(null)}
-                        isExpanded
                     />
                 ) : (
                     <Tabs
