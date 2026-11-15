@@ -55,8 +55,8 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
             >
                 <Providers>
-                    <div className="min-h-dvh bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
-                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
+                    <div className="h-dvh overflow-hidden bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
+                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
                             {children}
                         </div>
                     </div>

@@ -2,6 +2,7 @@
 
 import * as React from 'react'
 import { Drawer as DrawerPrimitive } from 'vaul'
+import 'vaul/style.css'
 
 import { cn } from '@/lib/utils'
 
@@ -51,7 +52,9 @@ function DrawerContent({
                 {...props}
             >
                 {showHandle && (
-                    <div className="mx-auto mt-3 h-1.5 w-10 shrink-0 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                    <DrawerPrimitive.Handle className="mx-auto mt-1 flex h-8 w-full shrink-0 items-center justify-center !bg-transparent">
+                        <span className="h-1.5 w-10 rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                    </DrawerPrimitive.Handle>
                 )}
                 {children}
             </DrawerPrimitive.Content>
