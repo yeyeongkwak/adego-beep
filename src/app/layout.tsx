@@ -56,8 +56,14 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
             >
                 <Providers>
+                    {/* iOS 17+/standalone: a fixed top strip (≥6px, ≥80% wide)
+                        with a solid bg cancels the forced status-bar blur. */}
+                    <div
+                        aria-hidden
+                        className="pointer-events-none fixed top-0 right-0 left-0 z-[70] hidden h-2 bg-primary supports-[display-mode:standalone]:block"
+                    />
                     <div className="h-dvh overflow-hidden bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
-                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-16 shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
+                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
                             {children}
                         </div>
                     </div>
