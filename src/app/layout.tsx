@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { Providers } from './providers'
@@ -26,9 +26,8 @@ export const metadata: Metadata = {
     appleWebApp: {
         capable: true,
         title: 'Adelaide Go Beep',
-        statusBarStyle: 'default',
+        statusBarStyle: 'black-translucent',
     },
-    themeColor: '#002b5c',
     icons: {
         icon: [
             { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -36,6 +35,13 @@ export const metadata: Metadata = {
         ],
         apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
     },
+}
+
+export const viewport: Viewport = {
+    themeColor: '#002b5c',
+    width: 'device-width',
+    initialScale: 1,
+    viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -49,8 +55,8 @@ export default function RootLayout({
                 className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
             >
                 <Providers>
-                    <div className="min-h-dvh bg-gray-200">
-                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl">
+                    <div className="min-h-dvh bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
+                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 pt-[env(safe-area-inset-top)] pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
                             {children}
                         </div>
                     </div>

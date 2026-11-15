@@ -16,6 +16,7 @@ const ERROR_MSG: Record<string, string> = {
     state: 'Sign-in could not be verified. Try again.',
     token: 'Could not exchange the login code. Try again.',
     userinfo: 'Could not load your Google profile. Try again.',
+    insert: 'Could not create your account. Try again.',
 }
 
 export function ProfileScreen({
