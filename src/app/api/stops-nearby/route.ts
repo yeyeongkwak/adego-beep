@@ -47,18 +47,22 @@ export async function GET(request: NextRequest) {
     }
 
     const stops: Stop[] = data
-        .filter((s) => s.stop_lat != null && s.stop_lon != null)
-        .map((s) => ({
-            id: s.stop_id,
-            name: s.stop_name ?? 'Unnamed stop',
-            code: s.stop_code,
-            lat: s.stop_lat,
-            lng: s.stop_lon,
-            mode: ROUTE_TYPE_MODE[s.route_type as number] ?? 'BUS',
-            distanceM: Math.round(
-                distanceMeters(center, { lat: s.stop_lat, lng: s.stop_lon })
-            ),
-        }))
+        .flatMap((s) => {
+            const lat = s.stop_lat
+            const lng = s.stop_lon
+            if (lat == null || lng == null) return []
+            return [
+                {
+                    id: s.stop_id,
+                    name: s.stop_name ?? 'Unnamed stop',
+                    code: s.stop_code,
+                    lat,
+                    lng,
+                    mode: ROUTE_TYPE_MODE[s.route_type as number] ?? 'BUS',
+                    distanceM: Math.round(distanceMeters(center, { lat, lng })),
+                },
+            ]
+        })
         .sort((a, b) => a.distanceM! - b.distanceM!)
         .slice(0, NEARBY_LIMIT)
 
