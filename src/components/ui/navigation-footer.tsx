@@ -38,7 +38,7 @@ export function NavigationFooter() {
     return (
         // Content row is h-14; safe-area only extends the white bg under the
         // home indicator so labels aren't buried in the corners.
-        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-md border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom,0px)] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-md border-t border-zinc-200 bg-white pb-[max(0.5rem,env(safe-area-inset-bottom))] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
             <div className="flex h-14 items-center justify-between px-2">
                 {NAVIGATION_ITEMS.map((item) => {
                     const Icon = item.icon
