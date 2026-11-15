@@ -36,7 +36,7 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        <div className="fixed bottom-0 left-1/2 z-[60] flex h-16 w-full max-w-md -translate-x-1/2 items-center justify-around border-t border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto flex w-full max-w-md items-center justify-between border-t border-zinc-200 bg-white px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] dark:border-zinc-700 dark:bg-zinc-950">
             {NAVIGATION_ITEMS.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname.startsWith(item.href)
@@ -46,7 +46,7 @@ export function NavigationFooter() {
                         key={item.id}
                         onClick={() => router.push(item.href)}
                         className={cn(
-                            'flex flex-col items-center justify-center gap-0.5 px-3 py-1.5 transition-colors active:scale-95',
+                            'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1.5 transition-colors active:scale-95',
                             isActive
                                 ? 'text-primary'
                                 : 'text-zinc-500 dark:text-zinc-400'
