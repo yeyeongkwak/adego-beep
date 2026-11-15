@@ -33,13 +33,16 @@ function DrawerContent({
     className,
     children,
     showHandle = true,
+    showOverlay = true,
     ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content> & {
     showHandle?: boolean
+    /** Home sheet sits over the map — dimming it looks like fog. */
+    showOverlay?: boolean
 }) {
     return (
         <DrawerPortal>
-            <DrawerOverlay />
+            {showOverlay ? <DrawerOverlay /> : null}
             <DrawerPrimitive.Content
                 className={cn(
                     'fixed inset-x-0 bottom-0 z-50 flex h-full flex-col rounded-t-3xl border-t border-zinc-200 bg-white shadow-[0_-8px_28px_rgba(0,43,92,0.12)] outline-none transition-[height] duration-300 ease-out dark:border-zinc-800 dark:bg-zinc-900',

@@ -108,7 +108,10 @@ export function HomeSheet({
                 modal={false}
                 dismissible
             >
-                <DrawerContent className="mx-auto max-w-md z-30">
+                <DrawerContent
+                    showOverlay={false}
+                    className="z-30 mx-auto max-w-md"
+                >
                     <DrawerTitle className="sr-only">Where to?</DrawerTitle>
                     <DrawerDescription className="sr-only">
                         Search a destination or pick a nearby stop

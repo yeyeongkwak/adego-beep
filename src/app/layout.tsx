@@ -50,7 +50,7 @@ export default function RootLayout({
             >
                 <Providers>
                     <div className="min-h-dvh bg-gray-200">
-                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 shadow-xl pb-16">
+                        <div className="relative mx-auto flex h-dvh w-full max-w-md flex-col bg-gray-50 pb-[calc(4rem+env(safe-area-inset-bottom))] shadow-xl">
                             {children}
                         </div>
                     </div>
