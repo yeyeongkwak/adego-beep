@@ -63,7 +63,7 @@ export default function RootLayout({
                         className="pointer-events-none fixed top-0 right-0 left-0 z-[70] hidden h-2 bg-primary supports-[display-mode:standalone]:block"
                     />
                     <div className="h-dvh overflow-hidden bg-gray-200 supports-[display-mode:standalone]:bg-gray-50">
-                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-[calc(3.5rem+max(0.25rem,calc(env(safe-area-inset-bottom)-0.5rem)))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
+                        <div className="relative mx-auto flex h-full w-full max-w-md flex-col overflow-hidden bg-gray-50 pb-[calc(3.5rem+max(0.125rem,calc(env(safe-area-inset-bottom)-1.25rem)))] shadow-xl supports-[display-mode:standalone]:max-w-none supports-[display-mode:standalone]:shadow-none">
                             {children}
                         </div>
                     </div>

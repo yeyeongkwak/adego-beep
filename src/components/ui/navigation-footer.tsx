@@ -36,10 +36,10 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        // Content row is h-14; safe-area only extends the white bg under the
-        // home indicator so labels aren't buried in the corners.
-        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-md border-t border-zinc-200 bg-white pb-[max(0.25rem,calc(env(safe-area-inset-bottom)-0.5rem))] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
-            <div className="flex h-14 items-center justify-between px-2">
+        // Sit icons at the bottom of the bar; keep only a slim strip under
+        // the labels for the home indicator (full safe-area looks "floating").
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-md border-t border-zinc-200 bg-white pb-[max(0.125rem,calc(env(safe-area-inset-bottom)-1.25rem))] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
+            <div className="flex h-14 items-end justify-between px-2 pb-0.5">
                 {NAVIGATION_ITEMS.map((item) => {
                     const Icon = item.icon
                     const isActive = pathname.startsWith(item.href)
@@ -49,7 +49,7 @@ export function NavigationFooter() {
                             key={item.id}
                             onClick={() => router.push(item.href)}
                             className={cn(
-                                'flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 py-1 transition-colors active:scale-95',
+                                'flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5 py-0 transition-colors active:scale-95',
                                 isActive
                                     ? 'text-primary'
                                     : 'text-zinc-500 dark:text-zinc-400'
