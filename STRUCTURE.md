@@ -84,5 +84,6 @@ copy local favourites into the account.
 ## Related docs
 
 - `README.md` — product features and env setup
+- `docs/SCREENS.md` — per-screen features + screenshots
 - `DATA.md` — Google APIs, GTFS static/realtime, daily import Action
 - `AGENTS.md` — conventions for edits (placement, style, GTFS quirks)

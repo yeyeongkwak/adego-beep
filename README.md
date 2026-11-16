@@ -5,14 +5,19 @@ GTFS (Supabase) and GTFS-Realtime give live times.
 
 ## Features
 
-- **Home** — map, nearby stops, live departures, place search
-- **Route** — A→B journeys, leave now or later, free-bus filter, walk + ride
-  breakdown, live vehicle on the map for a ride
-- **Favourites** — save places and stops (device storage when signed out;
-  account when signed in — the two stores are separate)
-- **Recent** — recent places on this device
-- **Profile** — Google sign-in / sign-out (JWT session cookie, not Supabase Auth)
-- **PWA** — installable (`manifest`, theme colour)
+Screen-by-screen pitch with screenshots: **[docs/SCREENS.md](./docs/SCREENS.md)**.
+
+- **Home** — map bounds → nearby stops (code + distance), live GTFS-R
+  departures, Where to? search
+- **Route** — A→B, leave now / later, free-bus filter, walk + catch hints,
+  live delay, lasting journey detail + vehicle on the map
+- **Favourites** — places vs stops; stop codes in the list; localStorage when
+  signed out, account sync after Google sign-in
+- **Recent** — recent places on this device only
+- **Profile** — Google sign-in / sign-out (JWT cookie, not Supabase Auth)
+- **PWA** — installable (`manifest`, theme colour, safe-area tab bar)
+
+Also: [STRUCTURE.md](./STRUCTURE.md) · [DATA.md](./DATA.md) · [AGENTS.md](./AGENTS.md)
 
 ## Stack
 
@@ -58,5 +63,6 @@ OAuth redirect URI: `{NEXT_PUBLIC_SITE_URL}/api/auth/callback`.
 GTFS SQL migrations live in `sql/migrations/` and are run by hand in the
 Supabase SQL editor. GitHub Actions runs `yarn gtfs:update` daily.
 
+- Screens + screenshots: [docs/SCREENS.md](./docs/SCREENS.md)
 - Folder layout: [STRUCTURE.md](./STRUCTURE.md)
 - Google APIs + GTFS / GitHub Action import: [DATA.md](./DATA.md)
