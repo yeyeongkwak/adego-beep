@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { HomeMap } from '@/components/page/home/home-map'
 import {
     HomeSheet,
@@ -63,10 +64,14 @@ export function HomeScreen() {
 
     const [locationDenied, setLocationDenied] = useState(false)
     const [locationRetrying, setLocationRetrying] = useState(false)
+    // Site was denied before; OS allow alone often isn't enough until reload.
+    const [locationNeedsReload, setLocationNeedsReload] = useState(false)
+    const [bannerHost, setBannerHost] = useState<HTMLElement | null>(null)
 
     const applyPosition = (pos: GeolocationPosition) => {
         setLocationRetrying(false)
         setLocationDenied(false)
+        setLocationNeedsReload(false)
         const coords = {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
@@ -75,13 +80,19 @@ export function HomeScreen() {
         setCenter(coords)
     }
 
-    const applyPositionError = (err: GeolocationPositionError) => {
+    const applyPositionError = (
+        err: GeolocationPositionError,
+        fromRetry = false
+    ) => {
         // 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
         console.warn(
             `[geolocation] falling back to Adelaide (code ${err.code}): ${err.message}`
         )
         setLocationRetrying(false)
         setLocationDenied(err.code === err.PERMISSION_DENIED)
+        if (fromRetry && err.code === err.PERMISSION_DENIED) {
+            setLocationNeedsReload(true)
+        }
         setCenter((c) => c ?? ADELAIDE_CENTER)
     }
 
@@ -93,8 +104,8 @@ export function HomeScreen() {
         setLocationRetrying(true)
         navigator.geolocation.getCurrentPosition(
             applyPosition,
-            applyPositionError,
-            { enableHighAccuracy: false, timeout: 15000 }
+            (err) => applyPositionError(err, true),
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
         )
     }
 
@@ -107,10 +118,54 @@ export function HomeScreen() {
         }
         navigator.geolocation.getCurrentPosition(
             applyPosition,
-            applyPositionError,
-            { enableHighAccuracy: false, timeout: 15000 }
+            (err) => applyPositionError(err, false),
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
         )
     }, [])
+
+    // Portal above the vaul sheet (body z-50) — otherwise the full-height
+    // drawer steals taps on Retry even when the banner looks free.
+    useEffect(() => {
+        queueMicrotask(() => setBannerHost(document.body))
+    }, [])
+
+    const topBanner =
+        bannerHost &&
+        createPortal(
+            <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] mx-auto flex w-full max-w-md flex-col items-start gap-2 p-4 supports-[display-mode:standalone]:max-w-none">
+                <span className="pointer-events-auto inline-block rounded-full bg-primary px-4 py-2 text-lg font-extrabold tracking-tight text-white shadow-lg shadow-primary/25">
+                    Adelaide Go Beep
+                </span>
+                {locationDenied && (
+                    <div className="pointer-events-auto flex w-full items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm shadow-lg dark:bg-zinc-800">
+                        <span className="min-w-0 flex-1 leading-snug">
+                            {locationNeedsReload
+                                ? 'Still blocked for this site. Safari aA → Website Settings → Location → Allow, then Reload.'
+                                : 'Location is off. Settings → Privacy & Security → Location Services → Safari Websites → While Using, then Retry.'}
+                        </span>
+                        {locationNeedsReload ? (
+                            <button
+                                type="button"
+                                onClick={() => window.location.reload()}
+                                className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white"
+                            >
+                                Reload
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={requestLocation}
+                                disabled={locationRetrying}
+                                className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
+                            >
+                                {locationRetrying ? 'Checking…' : 'Retry'}
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>,
+            bannerHost
+        )
 
     return (
         <div className="relative h-full w-full overflow-hidden">
@@ -131,28 +186,7 @@ export function HomeScreen() {
                 <div className="map-skeleton relative h-full w-full" />
             )}
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex flex-col items-start gap-2 p-4">
-                <span className="pointer-events-auto inline-block rounded-full bg-primary px-4 py-2 text-lg font-extrabold tracking-tight text-white shadow-lg shadow-primary/25">
-                    Adelaide Go Beep
-                </span>
-                {locationDenied && (
-                    <div className="pointer-events-auto flex items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm shadow-lg dark:bg-zinc-800">
-                        <span className="min-w-0 flex-1 leading-snug">
-                            Location is off. Settings → Privacy & Security →
-                            Location Services → Safari Websites → While Using,
-                            allow this site, then retry.
-                        </span>
-                        <button
-                            type="button"
-                            onClick={requestLocation}
-                            disabled={locationRetrying}
-                            className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
-                        >
-                            {locationRetrying ? 'Checking…' : 'Retry'}
-                        </button>
-                    </div>
-                )}
-            </div>
+            {topBanner}
 
             <HomeSheet
                 activeSnapPoint={snapPoint}

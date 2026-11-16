@@ -141,91 +141,97 @@ export function HomeSheet({
             >
                 <DrawerContent
                     showOverlay={false}
-                    className="z-30 mx-auto max-w-md"
+                    // Full-height drawer is translated for snaps; without this
+                    // the invisible upper area still eats map/banner taps.
+                    className="pointer-events-none z-30 mx-auto max-w-md [&_[data-vaul-handle]]:pointer-events-auto [&_[data-vaul-handle-hitarea]]:pointer-events-auto"
                 >
                     <DrawerTitle className="sr-only">Where to?</DrawerTitle>
                     <DrawerDescription className="sr-only">
                         Search a destination or pick a nearby stop
                     </DrawerDescription>
 
-                    {!isExpanded && hasHidden && (
-                        <button
-                            type="button"
-                            onClick={() => onSnapPointChange(MAX_SNAP_POINT)}
-                            className="mx-auto mt-2 mb-1 flex shrink-0 items-center justify-center gap-1 text-xs font-semibold text-primary"
-                        >
-                            <ChevronUp className="size-3.5 animate-nudge-up" />
-                            Pull up for more
-                        </button>
-                    )}
+                    <div className="pointer-events-auto flex min-h-0 flex-1 flex-col">
+                        {!isExpanded && hasHidden && (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onSnapPointChange(MAX_SNAP_POINT)
+                                }
+                                className="mx-auto mt-2 mb-1 flex shrink-0 items-center justify-center gap-1 text-xs font-semibold text-primary"
+                            >
+                                <ChevronUp className="size-3.5 animate-nudge-up" />
+                                Pull up for more
+                            </button>
+                        )}
 
-                    {selectedStop ? (
-                        <div
-                            ref={scrollRef}
-                            className="relative min-h-0 flex-1 overflow-hidden"
-                            style={{
-                                height:
-                                    typeof activeSnapPoint === 'number'
-                                        ? `${activeSnapPoint * 100}dvh`
-                                        : '50dvh',
-                            }}
-                        >
-                            <div className="absolute inset-x-0 top-0 flex h-full flex-col px-4 pt-3 pb-18">
-                                <StopArrivalsPanel
-                                    stop={selectedStop}
-                                    onBack={() => onSelectStop(null)}
-                                />
-                            </div>
-                        </div>
-                    ) : (
-                        <Tabs
-                            defaultValue="nearby"
-                            className="flex min-h-0 flex-1 flex-col"
-                        >
-                            {/* Outside the scroll area so drag here always moves the sheet. */}
-                            <div className="flex shrink-0 flex-col gap-4 px-4 pt-3">
-                                <div className="relative">
-                                    <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
-                                    <Input
-                                        placeholder="Where to?"
-                                        readOnly
-                                        onClick={() => setSearchOpen(true)}
-                                        className="h-12 cursor-pointer rounded-xl border-0 bg-zinc-100 pl-10 caret-transparent dark:bg-zinc-800"
-                                    />
-                                </div>
-                                <TabsList className="w-full">
-                                    <TabsTrigger value="nearby">
-                                        Nearby
-                                    </TabsTrigger>
-                                    <TabsTrigger value="favourites">
-                                        Favourites
-                                    </TabsTrigger>
-                                </TabsList>
-                            </div>
+                        {selectedStop ? (
                             <div
                                 ref={scrollRef}
-                                className={cn(
-                                    'scrollbar-hide min-h-0 flex-1 overscroll-contain px-4 pt-4 pb-18',
-                                    isExpanded
-                                        ? 'overflow-y-auto'
-                                        : 'overflow-hidden'
-                                )}
+                                className="relative min-h-0 flex-1 overflow-hidden"
+                                style={{
+                                    height:
+                                        typeof activeSnapPoint === 'number'
+                                            ? `${activeSnapPoint * 100}dvh`
+                                            : '50dvh',
+                                }}
                             >
-                                <TabsContent value="nearby">
-                                    <StopList
-                                        stops={nearbyStops}
-                                        loading={nearbyLoading}
-                                        onSelect={onSelectStop}
+                                <div className="absolute inset-x-0 top-0 flex h-full flex-col px-4 pt-3 pb-18">
+                                    <StopArrivalsPanel
+                                        stop={selectedStop}
+                                        onBack={() => onSelectStop(null)}
                                     />
-                                </TabsContent>
-                                <TabsContent value="favourites">
-                                    <FavouritesList
-                                        onSelectStop={onSelectStop}
-                                    />
-                                </TabsContent>
+                                </div>
                             </div>
-                        </Tabs>
-                    )}
+                        ) : (
+                            <Tabs
+                                defaultValue="nearby"
+                                className="flex min-h-0 flex-1 flex-col"
+                            >
+                                {/* Outside the scroll area so drag here always moves the sheet. */}
+                                <div className="flex shrink-0 flex-col gap-4 px-4 pt-3">
+                                    <div className="relative">
+                                        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
+                                        <Input
+                                            placeholder="Where to?"
+                                            readOnly
+                                            onClick={() => setSearchOpen(true)}
+                                            className="h-12 cursor-pointer rounded-xl border-0 bg-zinc-100 pl-10 caret-transparent dark:bg-zinc-800"
+                                        />
+                                    </div>
+                                    <TabsList className="w-full">
+                                        <TabsTrigger value="nearby">
+                                            Nearby
+                                        </TabsTrigger>
+                                        <TabsTrigger value="favourites">
+                                            Favourites
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </div>
+                                <div
+                                    ref={scrollRef}
+                                    className={cn(
+                                        'scrollbar-hide min-h-0 flex-1 overscroll-contain px-4 pt-4 pb-18',
+                                        isExpanded
+                                            ? 'overflow-y-auto'
+                                            : 'overflow-hidden'
+                                    )}
+                                >
+                                    <TabsContent value="nearby">
+                                        <StopList
+                                            stops={nearbyStops}
+                                            loading={nearbyLoading}
+                                            onSelect={onSelectStop}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="favourites">
+                                        <FavouritesList
+                                            onSelectStop={onSelectStop}
+                                        />
+                                    </TabsContent>
+                                </div>
+                            </Tabs>
+                        )}
+                    </div>
                 </DrawerContent>
             </Drawer>
 
