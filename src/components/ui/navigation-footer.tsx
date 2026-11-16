@@ -36,9 +36,9 @@ export function NavigationFooter() {
     const router = useRouter()
 
     return (
-        // Full-bleed white bar to the screen edge; safe-area only pads the
-        // icon row up so labels clear the home indicator.
-        <nav className="fixed inset-x-0 bottom-0 z-[60] w-full border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] dark:border-zinc-700 dark:bg-zinc-950">
+        // Match the max-w-md column in the browser; go full-bleed only in the
+        // installed PWA. Safe-area pads the icon row above the home indicator.
+        <nav className="fixed inset-x-0 bottom-0 z-[60] mx-auto w-full max-w-md border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] supports-[display-mode:standalone]:max-w-none dark:border-zinc-700 dark:bg-zinc-950">
             <div className="flex h-16 w-full items-center justify-between px-2">
                 {NAVIGATION_ITEMS.map((item) => {
                     const Icon = item.icon
