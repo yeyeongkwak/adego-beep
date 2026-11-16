@@ -22,6 +22,10 @@ export const SNAP_POINTS = [0, 0.5, 0.9]
 export const PREVIEW_SNAP_POINT = SNAP_POINTS[1]
 export const MAX_SNAP_POINT = SNAP_POINTS[SNAP_POINTS.length - 1]
 
+// Low-velocity drags (mouse / careful touch) otherwise bounce to the closest
+// snap. A short pull is enough to step; applied after vaul so we win the race.
+const SNAP_STEP_PX = 28
+
 export function HomeSheet({
     activeSnapPoint,
     onSnapPointChange,
@@ -36,9 +40,29 @@ export function HomeSheet({
     onSelectStop: (stop: Stop | null) => void
 }) {
     const scrollRef = useRef<HTMLDivElement>(null)
+    const dragStartY = useRef<number | null>(null)
+    const dragStartSnap = useRef<number | string | null>(null)
     const [hasHidden, setHasHidden] = useState(false)
     const [searchOpen, setSearchOpen] = useState(false)
     const router = useRouter()
+
+    const stepSnapFromDrag = (endY: number) => {
+        if (dragStartY.current == null) return
+        const dy = endY - dragStartY.current
+        const from = dragStartSnap.current
+        dragStartY.current = null
+        dragStartSnap.current = null
+        if (typeof from !== 'number') return
+        const idx = SNAP_POINTS.indexOf(from)
+        if (idx < 0) return
+        let next: number | null = null
+        if (dy > SNAP_STEP_PX && idx > 0) next = SNAP_POINTS[idx - 1]
+        else if (dy < -SNAP_STEP_PX && idx < SNAP_POINTS.length - 1)
+            next = SNAP_POINTS[idx + 1]
+        if (next == null) return
+        // Vaul may have already snapped back to `from`; override on next tick.
+        setTimeout(() => onSnapPointChange(next), 0)
+    }
 
     // Picking a destination from search jumps to the route planner with that
     // place preset as the destination.
@@ -83,6 +107,7 @@ export function HomeSheet({
             <Drawer
                 open
                 onOpenChange={(next) => {
+                    // Stay mounted; snap 0 is the collapsed state.
                     if (!next) onSnapPointChange(0)
                 }}
                 snapPoints={SNAP_POINTS}
@@ -92,7 +117,25 @@ export function HomeSheet({
                 // Always-open home sheet: vaul's iOS body{position:fixed}
                 // makes the map look foggy in Add-to-Home-Screen / Safari.
                 noBodyStyles
-                dismissible
+                // open is always true — dismissible would fight that and bounce.
+                dismissible={false}
+                // One snap per gesture (0.9 → 0.5 → 0), no velocity skips.
+                snapToSequentialPoint
+                scrollLockTimeout={0}
+                onDrag={(e) => {
+                    if (!('clientY' in e)) return
+                    if (dragStartY.current == null) {
+                        dragStartY.current = e.clientY
+                        dragStartSnap.current = activeSnapPoint
+                    }
+                }}
+                onRelease={(e) => {
+                    if ('clientY' in e) stepSnapFromDrag(e.clientY)
+                    else {
+                        dragStartY.current = null
+                        dragStartSnap.current = null
+                    }
+                }}
             >
                 <DrawerContent
                     showOverlay={false}
@@ -114,36 +157,31 @@ export function HomeSheet({
                         </button>
                     )}
 
-                    <div
-                        ref={scrollRef}
-                        className={cn(
-                            'scrollbar-hide relative flex min-h-0 flex-1 flex-col gap-4 overscroll-contain px-4 pt-3 pb-18',
-                            selectedStop || !isExpanded
-                                ? 'overflow-hidden'
-                                : 'overflow-y-auto'
-                        )}
-                    >
-                        {selectedStop ? (
-                            // Vaul keeps the drawer at 100vh and only
-                            // translateY-slides it. --snap-point-height is that
-                            // offset, not the visible height — use the snap
-                            // fraction instead so empty copy can center.
-                            <div
-                                className="absolute inset-x-0 top-0 flex flex-col px-4 pt-3 pb-18"
-                                style={{
-                                    height:
-                                        typeof activeSnapPoint === 'number'
-                                            ? `${activeSnapPoint * 100}dvh`
-                                            : '50dvh',
-                                }}
-                            >
+                    {selectedStop ? (
+                        <div
+                            ref={scrollRef}
+                            className="relative min-h-0 flex-1 overflow-hidden"
+                            style={{
+                                height:
+                                    typeof activeSnapPoint === 'number'
+                                        ? `${activeSnapPoint * 100}dvh`
+                                        : '50dvh',
+                            }}
+                        >
+                            <div className="absolute inset-x-0 top-0 flex h-full flex-col px-4 pt-3 pb-18">
                                 <StopArrivalsPanel
                                     stop={selectedStop}
                                     onBack={() => onSelectStop(null)}
                                 />
                             </div>
-                        ) : (
-                            <>
+                        </div>
+                    ) : (
+                        <Tabs
+                            defaultValue="nearby"
+                            className="flex min-h-0 flex-1 flex-col"
+                        >
+                            {/* Outside the scroll area so drag here always moves the sheet. */}
+                            <div className="flex shrink-0 flex-col gap-4 px-4 pt-3">
                                 <div className="relative">
                                     <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-zinc-400" />
                                     <Input
@@ -153,31 +191,38 @@ export function HomeSheet({
                                         className="h-12 cursor-pointer rounded-xl border-0 bg-zinc-100 pl-10 caret-transparent dark:bg-zinc-800"
                                     />
                                 </div>
-
-                                <Tabs defaultValue="nearby">
-                                    <TabsList className="w-full">
-                                        <TabsTrigger value="nearby">
-                                            Nearby
-                                        </TabsTrigger>
-                                        <TabsTrigger value="favourites">
-                                            Favourites
-                                        </TabsTrigger>
-                                    </TabsList>
-                                    <TabsContent value="nearby">
-                                        <StopList
-                                            stops={nearbyStops}
-                                            onSelect={onSelectStop}
-                                        />
-                                    </TabsContent>
-                                    <TabsContent value="favourites">
-                                        <FavouritesList
-                                            onSelectStop={onSelectStop}
-                                        />
-                                    </TabsContent>
-                                </Tabs>
-                            </>
-                        )}
-                    </div>
+                                <TabsList className="w-full">
+                                    <TabsTrigger value="nearby">
+                                        Nearby
+                                    </TabsTrigger>
+                                    <TabsTrigger value="favourites">
+                                        Favourites
+                                    </TabsTrigger>
+                                </TabsList>
+                            </div>
+                            <div
+                                ref={scrollRef}
+                                className={cn(
+                                    'scrollbar-hide min-h-0 flex-1 overscroll-contain px-4 pt-4 pb-18',
+                                    isExpanded
+                                        ? 'overflow-y-auto'
+                                        : 'overflow-hidden'
+                                )}
+                            >
+                                <TabsContent value="nearby">
+                                    <StopList
+                                        stops={nearbyStops}
+                                        onSelect={onSelectStop}
+                                    />
+                                </TabsContent>
+                                <TabsContent value="favourites">
+                                    <FavouritesList
+                                        onSelectStop={onSelectStop}
+                                    />
+                                </TabsContent>
+                            </div>
+                        </Tabs>
+                    )}
                 </DrawerContent>
             </Drawer>
 

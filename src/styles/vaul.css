@@ -167,6 +167,16 @@
     touch-action: inherit;
 }
 
+/* Our drawers use a full-width grab strip; fill the whole strip for hits. */
+[data-vaul-handle][data-full-grab] [data-vaul-handle-hitarea] {
+    inset: 0;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    transform: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
     [data-vaul-drawer] {
         user-select: none;
