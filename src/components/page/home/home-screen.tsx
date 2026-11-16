@@ -28,7 +28,8 @@ export function HomeScreen() {
         lng: number
     } | null>(null)
 
-    const { stops: nearbyStops } = useNearbyStops(searchBounds)
+    const { stops: nearbyStops, loading: nearbyLoading } =
+        useNearbyStops(searchBounds)
 
     const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
 
@@ -61,37 +62,55 @@ export function HomeScreen() {
     }
 
     const [locationDenied, setLocationDenied] = useState(false)
+    const [locationRetrying, setLocationRetrying] = useState(false)
+
+    const applyPosition = (pos: GeolocationPosition) => {
+        setLocationRetrying(false)
+        setLocationDenied(false)
+        const coords = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+        }
+        setUserLocation(coords)
+        setCenter(coords)
+    }
+
+    const applyPositionError = (err: GeolocationPositionError) => {
+        // 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
+        console.warn(
+            `[geolocation] falling back to Adelaide (code ${err.code}): ${err.message}`
+        )
+        setLocationRetrying(false)
+        setLocationDenied(err.code === err.PERMISSION_DENIED)
+        setCenter((c) => c ?? ADELAIDE_CENTER)
+    }
 
     const requestLocation = () => {
         if (!('geolocation' in navigator)) {
-            queueMicrotask(() => {
-                setCenter(ADELAIDE_CENTER)
-            })
+            setCenter(ADELAIDE_CENTER)
             return
         }
+        setLocationRetrying(true)
         navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                setLocationDenied(false)
-                const coords = {
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                }
-                setUserLocation(coords)
-                setCenter(coords)
-            },
-            (err) => {
-                // 1=PERMISSION_DENIED 2=POSITION_UNAVAILABLE 3=TIMEOUT
-                console.warn(
-                    `[geolocation] falling back to Adelaide (code ${err.code}): ${err.message}`
-                )
-                setLocationDenied(err.code === err.PERMISSION_DENIED)
-                setCenter((c) => c ?? ADELAIDE_CENTER)
-            },
+            applyPosition,
+            applyPositionError,
             { enableHighAccuracy: false, timeout: 15000 }
         )
     }
 
-    useEffect(requestLocation, [])
+    // Ask once on mount; setState only in geolocation callbacks (or a
+    // microtask if the API is missing) so we don't trip set-state-in-effect.
+    useEffect(() => {
+        if (!('geolocation' in navigator)) {
+            queueMicrotask(() => setCenter(ADELAIDE_CENTER))
+            return
+        }
+        navigator.geolocation.getCurrentPosition(
+            applyPosition,
+            applyPositionError,
+            { enableHighAccuracy: false, timeout: 15000 }
+        )
+    }, [])
 
     return (
         <div className="relative h-full w-full overflow-hidden">
@@ -117,17 +136,19 @@ export function HomeScreen() {
                     Adelaide Go Beep
                 </span>
                 {locationDenied && (
-                    <div className="pointer-events-auto flex items-center gap-3 rounded-xl bg-white px-4 py-2 text-sm shadow-lg dark:bg-zinc-800">
-                        <span>
-                            Location access is off. Enable it in your device
-                            settings.
+                    <div className="pointer-events-auto flex items-center gap-3 rounded-xl bg-white px-3 py-2 text-sm shadow-lg dark:bg-zinc-800">
+                        <span className="min-w-0 flex-1 leading-snug">
+                            Location is off. Settings → Privacy & Security →
+                            Location Services → Safari Websites → While Using,
+                            allow this site, then retry.
                         </span>
                         <button
                             type="button"
                             onClick={requestLocation}
-                            className="min-h-11 shrink-0 font-semibold text-primary"
+                            disabled={locationRetrying}
+                            className="shrink-0 rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-60"
                         >
-                            Retry
+                            {locationRetrying ? 'Checking…' : 'Retry'}
                         </button>
                     </div>
                 )}
@@ -137,6 +158,7 @@ export function HomeScreen() {
                 activeSnapPoint={snapPoint}
                 onSnapPointChange={setSnapPoint}
                 nearbyStops={nearbyStops}
+                nearbyLoading={nearbyLoading}
                 selectedStop={selectedStop}
                 onSelectStop={handleSelectStop}
             />

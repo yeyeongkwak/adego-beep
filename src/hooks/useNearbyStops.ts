@@ -14,7 +14,10 @@ export const useNearbyStops = (bounds: MapBounds | null) => {
     const east = bounds ? round4(bounds.east) : null
     const west = bounds ? round4(bounds.west) : null
 
-    const { data, isLoading, error } = useQuery({
+    const enabled =
+        north != null && south != null && east != null && west != null
+
+    const { data, isPending, error } = useQuery({
         queryKey: ['stops-nearby', north, south, east, west],
         queryFn: async ({ signal }): Promise<NearbyStop[]> => {
             const params = new URLSearchParams({
@@ -29,7 +32,7 @@ export const useNearbyStops = (bounds: MapBounds | null) => {
                 throw new Error(data.error ?? 'Failed to load nearby stops')
             return data.stops ?? []
         },
-        enabled: north != null && south != null && east != null && west != null,
+        enabled,
         staleTime: 60_000,
         gcTime: 5 * 60_000,
         retry: 1,
@@ -40,7 +43,9 @@ export const useNearbyStops = (bounds: MapBounds | null) => {
 
     return {
         stops: data ?? [],
-        loading: isLoading,
+        // Disabled queries stay pending with no fetch — treat as loading until
+        // the map has bounds and the first result (even an empty list) arrives.
+        loading: !enabled || isPending,
         error: error ? (error as Error).message : null,
     }
 }

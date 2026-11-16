@@ -30,12 +30,14 @@ export function HomeSheet({
     activeSnapPoint,
     onSnapPointChange,
     nearbyStops,
+    nearbyLoading = false,
     selectedStop,
     onSelectStop,
 }: {
     activeSnapPoint: number | string | null
     onSnapPointChange: (snapPoint: number | string | null) => void
     nearbyStops: Stop[]
+    nearbyLoading?: boolean
     selectedStop: Stop | null
     onSelectStop: (stop: Stop | null) => void
 }) {
@@ -212,6 +214,7 @@ export function HomeSheet({
                                 <TabsContent value="nearby">
                                     <StopList
                                         stops={nearbyStops}
+                                        loading={nearbyLoading}
                                         onSelect={onSelectStop}
                                     />
                                 </TabsContent>

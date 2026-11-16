@@ -51,17 +51,26 @@ const StopRow = ({
 
 export const StopList = ({
     stops,
+    loading = false,
     onSelect,
 }: {
     stops: Stop[]
+    loading?: boolean
     onSelect: (stop: Stop) => void
 }) => {
     const { isFavourite } = useFavourites()
 
+    if (loading && stops.length === 0) {
+        return (
+            <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                Loading …
+            </p>
+        )
+    }
     if (stops.length === 0) {
         return (
             <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                Loading ...
+                No Adelaide Metro stops in this area
             </p>
         )
     }
