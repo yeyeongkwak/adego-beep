@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS public.favorite_locations (
   longitude   double precision NOT NULL,
   latitude    double precision NOT NULL,
   address     text,
+  code        text,
   place_type  text NOT NULL,
   created_at  timestamptz DEFAULT now()
 );

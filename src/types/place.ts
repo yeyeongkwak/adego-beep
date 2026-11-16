@@ -28,6 +28,7 @@ export type Favourite = {
     lat: number
     lng: number
     mode?: StopMode // present for stops, used for the list icon
+    code?: string | null // GTFS stop_code for placeType=stop
 }
 
 export type Recent = Favourite & {

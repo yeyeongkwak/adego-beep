@@ -100,6 +100,7 @@ export const StopArrivalsPanel = ({
             lat: stop.lat,
             lng: stop.lng,
             mode: stop.mode,
+            code: stop.code,
         })
 
     const statusMessage = error

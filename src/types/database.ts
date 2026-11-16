@@ -65,6 +65,7 @@ export type Database = {
             favorite_locations: {
                 Row: {
                     address: string | null
+                    code: string | null
                     created_at: string | null
                     id: string
                     is_home: boolean | null
@@ -78,6 +79,7 @@ export type Database = {
                 }
                 Insert: {
                     address?: string | null
+                    code?: string | null
                     created_at?: string | null
                     id?: string
                     is_home?: boolean | null
@@ -91,6 +93,7 @@ export type Database = {
                 }
                 Update: {
                     address?: string | null
+                    code?: string | null
                     created_at?: string | null
                     id?: string
                     is_home?: boolean | null

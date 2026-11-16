@@ -13,7 +13,7 @@ export async function GET() {
 
     const { data, error } = await createSecretClient()
         .from('favorite_locations')
-        .select('place_type, place_id, label, latitude, longitude, mode')
+        .select('place_type, place_id, label, latitude, longitude, mode, code')
         .eq('user_id', session.userId)
         .order('created_at', { ascending: false })
 
@@ -28,6 +28,7 @@ export async function GET() {
         lat: item.latitude,
         lng: item.longitude,
         ...(item.mode ? { mode: item.mode as StopMode } : {}),
+        ...(item.code ? { code: item.code } : {}),
     }))
 
     return NextResponse.json({ favourites })
@@ -64,6 +65,10 @@ export async function POST(request: Request) {
                 latitude: body.lat,
                 longitude: body.lng,
                 mode: body.mode ?? null,
+                code:
+                    body.placeType === 'stop' && typeof body.code === 'string'
+                        ? body.code
+                        : null,
             },
             {
                 onConflict: 'user_id,place_type,place_id',

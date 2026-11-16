@@ -3,8 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { MapPin, Star } from 'lucide-react'
 import { useFavourites } from '@/hooks/useFavourites'
-import { useStopArrival } from '@/hooks/useStopArrival'
-import { formatArrival } from '@/util/arrival'
 import { routeUrl } from '@/util/route'
 import { toPlaceFavourite } from '@/util/favourite'
 import type { Favourite, Stop, PickedLocation } from '@/types/place'
@@ -16,7 +14,7 @@ import { FavouriteStarButton } from '@/components/ui/favourite-star'
 const toStop = (f: Favourite): Stop => ({
     id: f.placeId,
     name: f.label,
-    code: null,
+    code: f.code ?? null,
     lat: f.lat,
     lng: f.lng,
     mode: f.mode,
@@ -73,8 +71,6 @@ const StopRow = ({
     onSelect: (stop: Stop) => void
 }) => {
     const { remove } = useFavourites()
-    const { arrivals, loading } = useStopArrival(stop.placeId)
-    const next = arrivals.filter((a) => !a.cancelled).slice(0, 3)
     const style = stop.mode ? STOP_MODE_STYLE[stop.mode] : null
     const Icon = style?.icon ?? MapPin
     return (
@@ -86,15 +82,7 @@ const StopRow = ({
             }
             iconClass={style?.bgClass ?? 'bg-zinc-100 dark:bg-zinc-800'}
             title={stop.label}
-            subtitle={
-                next.length > 0
-                    ? next
-                          .map((a) => `${a.route} ${formatArrival(a.minutes)}`)
-                          .join(' · ')
-                    : loading
-                      ? 'Loading…'
-                      : 'No buses soon'
-            }
+            subtitle={stop.code ? `Stop ${stop.code}` : 'Saved stop'}
             onClick={() => onSelect(toStop(stop))}
             trailing={
                 <FavouriteStarButton

@@ -9,6 +9,7 @@ import {
 import { useNearbyStops } from '@/hooks/useNearbyStops'
 import type { MapBounds } from '@/types/geo'
 import type { Stop } from '@/types/place'
+import { distanceMeters } from '@/util/map/distance'
 
 // Adelaide CBD — fallback center when location is denied/unavailable.
 const ADELAIDE_CENTER = { lat: -34.9285, lng: 138.6007 }
@@ -32,7 +33,28 @@ export function HomeScreen() {
     const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
 
     const handleSelectStop = (stop: Stop | null) => {
-        setSelectedStop(stop)
+        if (!stop) {
+            setSelectedStop(null)
+            return
+        }
+        // Favourites omit code/distance; fill from nearby list or live GPS.
+        const nearby = nearbyStops.find((s) => s.id === stop.id)
+        const distanceM =
+            stop.distanceM ??
+            nearby?.distanceM ??
+            (userLocation
+                ? Math.round(
+                      distanceMeters(userLocation, {
+                          lat: stop.lat,
+                          lng: stop.lng,
+                      })
+                  )
+                : undefined)
+        setSelectedStop({
+            ...stop,
+            code: stop.code ?? nearby?.code ?? null,
+            distanceM,
+        })
         setSnapPoint((current) =>
             current === 0 ? PREVIEW_SNAP_POINT : current
         )
