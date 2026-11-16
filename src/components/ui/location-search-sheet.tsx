@@ -251,12 +251,6 @@ export function LocationSearchSheet({
                             />
                         </ul>
                     )}
-                    {!q && favs.length === 0 && recs.length === 0 && (
-                        <p className="px-2 pt-8 text-center text-sm text-zinc-500">
-                            Type an Adelaide place name to search
-                        </p>
-                    )}
-
                     {favs.length > 0 && (
                         <Section title="Favourites">
                             {favs.map((f) => (
