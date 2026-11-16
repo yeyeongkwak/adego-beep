@@ -180,10 +180,10 @@ export function LocationSearchSheet({
 
     return (
         <Drawer open={open} onOpenChange={onOpenChange}>
-            {/* z-[70]: above the fixed nav footer (z-[60]) */}
+            {/* Above nav (60), PWA status strip (70), and home brand portal (80). */}
             <DrawerContent
                 showHandle={false}
-                className="z-[70] mx-auto max-w-md rounded-none border-0"
+                className="z-[90] mx-auto max-w-md rounded-none border-0 supports-[display-mode:standalone]:max-w-none"
             >
                 <DrawerTitle className="sr-only">{placeholder}</DrawerTitle>
                 <DrawerDescription className="sr-only">
@@ -236,7 +236,7 @@ export function LocationSearchSheet({
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-3 pt-3 pb-8">
+                <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-[max(2rem,env(safe-area-inset-bottom))]">
                     {!q && (
                         <ul>
                             <Row
@@ -250,6 +250,11 @@ export function LocationSearchSheet({
                                 onClick={useCurrentLocation}
                             />
                         </ul>
+                    )}
+                    {!q && favs.length === 0 && recs.length === 0 && (
+                        <p className="px-2 pt-8 text-center text-sm text-zinc-500">
+                            Type an Adelaide place name to search
+                        </p>
                     )}
 
                     {favs.length > 0 && (

@@ -33,6 +33,7 @@ export function HomeSheet({
     nearbyLoading = false,
     selectedStop,
     onSelectStop,
+    onSearchOpenChange,
 }: {
     activeSnapPoint: number | string | null
     onSnapPointChange: (snapPoint: number | string | null) => void
@@ -40,6 +41,7 @@ export function HomeSheet({
     nearbyLoading?: boolean
     selectedStop: Stop | null
     onSelectStop: (stop: Stop | null) => void
+    onSearchOpenChange?: (open: boolean) => void
 }) {
     const scrollRef = useRef<HTMLDivElement>(null)
     const dragStartY = useRef<number | null>(null)
@@ -47,6 +49,11 @@ export function HomeSheet({
     const [hasHidden, setHasHidden] = useState(false)
     const [searchOpen, setSearchOpen] = useState(false)
     const router = useRouter()
+
+    const setSearch = (open: boolean) => {
+        setSearchOpen(open)
+        onSearchOpenChange?.(open)
+    }
 
     const stepSnapFromDrag = (endY: number) => {
         if (dragStartY.current == null) return
@@ -194,7 +201,7 @@ export function HomeSheet({
                                         <Input
                                             placeholder="Where to?"
                                             readOnly
-                                            onClick={() => setSearchOpen(true)}
+                                            onClick={() => setSearch(true)}
                                             className="h-12 cursor-pointer rounded-xl border-0 bg-zinc-100 pl-10 caret-transparent dark:bg-zinc-800"
                                         />
                                     </div>
@@ -237,7 +244,7 @@ export function HomeSheet({
 
             <LocationSearchSheet
                 open={searchOpen}
-                onOpenChange={setSearchOpen}
+                onOpenChange={setSearch}
                 placeholder="Where to?"
                 onSelect={goToRoute}
             />

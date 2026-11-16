@@ -67,6 +67,7 @@ export function HomeScreen() {
     // Site was denied before; OS allow alone often isn't enough until reload.
     const [locationNeedsReload, setLocationNeedsReload] = useState(false)
     const [bannerHost, setBannerHost] = useState<HTMLElement | null>(null)
+    const [searchOpen, setSearchOpen] = useState(false)
 
     const applyPosition = (pos: GeolocationPosition) => {
         setLocationRetrying(false)
@@ -129,8 +130,11 @@ export function HomeScreen() {
         queueMicrotask(() => setBannerHost(document.body))
     }, [])
 
+    // Portaled above the home sheet for Retry taps — hide while search is
+    // open so it doesn't sit on top of LocationSearchSheet (z-90).
     const topBanner =
         bannerHost &&
+        !searchOpen &&
         createPortal(
             <div className="pointer-events-none fixed inset-x-0 top-0 z-[80] mx-auto flex w-full max-w-md flex-col items-start gap-2 p-4 supports-[display-mode:standalone]:max-w-none">
                 <span className="pointer-events-auto inline-block rounded-full bg-primary px-4 py-2 text-lg font-extrabold tracking-tight text-white shadow-lg shadow-primary/25">
@@ -195,6 +199,7 @@ export function HomeScreen() {
                 nearbyLoading={nearbyLoading}
                 selectedStop={selectedStop}
                 onSelectStop={handleSelectStop}
+                onSearchOpenChange={setSearchOpen}
             />
 
             {collapsed && (
