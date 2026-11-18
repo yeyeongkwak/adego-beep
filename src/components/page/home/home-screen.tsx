@@ -10,10 +10,14 @@ import {
 import { useNearbyStops } from '@/hooks/useNearbyStops'
 import type { MapBounds } from '@/types/geo'
 import type { Stop } from '@/types/place'
-import { distanceMeters } from '@/util/map/distance'
+import { boundsAround, distanceMeters } from '@/util/map/distance'
 
 // Adelaide CBD — fallback center when location is denied/unavailable.
 const ADELAIDE_CENTER = { lat: -34.9285, lng: 138.6007 }
+
+// Seed Nearby before the map reports real bounds (GPS zoom ≈ tight box).
+const seedBounds = (at: { lat: number; lng: number }, gps: boolean) =>
+    boundsAround(at, gps ? 500 : 1500)
 
 export function HomeScreen() {
     const [snapPoint, setSnapPoint] = useState<number | string | null>(
@@ -79,6 +83,7 @@ export function HomeScreen() {
         }
         setUserLocation(coords)
         setCenter(coords)
+        setSearchBounds(seedBounds(coords, true))
     }
 
     const applyPositionError = (
@@ -95,11 +100,13 @@ export function HomeScreen() {
             setLocationNeedsReload(true)
         }
         setCenter((c) => c ?? ADELAIDE_CENTER)
+        setSearchBounds((b) => b ?? seedBounds(ADELAIDE_CENTER, false))
     }
 
     const requestLocation = () => {
         if (!('geolocation' in navigator)) {
             setCenter(ADELAIDE_CENTER)
+            setSearchBounds(seedBounds(ADELAIDE_CENTER, false))
             return
         }
         setLocationRetrying(true)
@@ -114,7 +121,10 @@ export function HomeScreen() {
     // microtask if the API is missing) so we don't trip set-state-in-effect.
     useEffect(() => {
         if (!('geolocation' in navigator)) {
-            queueMicrotask(() => setCenter(ADELAIDE_CENTER))
+            queueMicrotask(() => {
+                setCenter(ADELAIDE_CENTER)
+                setSearchBounds(seedBounds(ADELAIDE_CENTER, false))
+            })
             return
         }
         navigator.geolocation.getCurrentPosition(

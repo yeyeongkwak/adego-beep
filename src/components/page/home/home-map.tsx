@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
     AdvancedMarker,
     APIProvider,
     Map,
     useMap,
+    type MapEvent,
 } from '@vis.gl/react-google-maps'
 import { LocateFixed } from 'lucide-react'
 import type { MapBounds } from '@/types/geo'
@@ -13,6 +14,19 @@ import type { NearbyStop } from '@/types/place'
 import { STOP_ICON_URL } from '@/util/map/stopIcons'
 
 const IDLE_DEBOUNCE_MS = 600
+
+function boundsFromMap(map: google.maps.Map): MapBounds | null {
+    const b = map.getBounds()
+    if (!b) return null
+    const ne = b.getNorthEast()
+    const sw = b.getSouthWest()
+    return {
+        north: ne.lat(),
+        south: sw.lat(),
+        east: ne.lng(),
+        west: sw.lng(),
+    }
+}
 
 function RecenterButton({
     userLocation,
@@ -44,59 +58,23 @@ function RecenterButton({
 
 function MapController({
     selectedStop,
-    onBoundsChange,
+    programmaticMoveRef,
 }: {
     selectedStop: { lat: number; lng: number } | null
-    onBoundsChange: (bounds: MapBounds) => void
+    programmaticMoveRef: { current: boolean }
 }) {
     const map = useMap()
-    // Set while we pan programmatically (stop selection); the idle it triggers
-    // should not count as a user move, so we skip the re-search for it.
-    const programmaticMove = useRef(false)
-    // ReturnType<typeof setTimeout> safely types the timer ID across environments:
-    // browser returns `number`, Node.js 18+ returns `Timeout` object.
-    const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Pan to the selected stop, lifting it above the bottom sheet.
     useEffect(() => {
         if (!map || !selectedStop) return
-        programmaticMove.current = true
+        programmaticMoveRef.current = true
         map.setZoom(Math.max(map.getZoom() ?? 0, 18))
         map.panTo({ lat: selectedStop.lat, lng: selectedStop.lng })
         const el = map.getDiv()
         const shift = el ? el.clientHeight * 0.25 : 150
         map.panBy(0, shift)
-    }, [map, selectedStop])
-
-    // Re-search the visible area once the map has settled from a user move.
-    // Reporting the actual bounds (not a fixed radius) keeps the list in sync
-    // with what's on screen — zoom in and only the visible stops remain.
-    useEffect(() => {
-        if (!map) return
-        const listener = map.addListener('idle', () => {
-            if (programmaticMove.current) {
-                programmaticMove.current = false
-                return
-            }
-            if (debounceTimer.current) clearTimeout(debounceTimer.current)
-            debounceTimer.current = setTimeout(() => {
-                const b = map.getBounds()
-                if (!b) return
-                const ne = b.getNorthEast()
-                const sw = b.getSouthWest()
-                onBoundsChange({
-                    north: ne.lat(),
-                    south: sw.lat(),
-                    east: ne.lng(),
-                    west: sw.lng(),
-                })
-            }, IDLE_DEBOUNCE_MS)
-        })
-        return () => {
-            listener.remove()
-            if (debounceTimer.current) clearTimeout(debounceTimer.current)
-        }
-    }, [map, onBoundsChange])
+    }, [map, selectedStop, programmaticMoveRef])
 
     return null
 }
@@ -123,6 +101,57 @@ export function HomeMap({
     // Skeleton covers the map's grey backdrop until the tiles have loaded.
     const [mapReady, setMapReady] = useState(false)
 
+    // Skip Nearby refetch after stop-select pans; still publish the first
+    // bounds so the list never sticks on Loading.
+    const programmaticMoveRef = useRef(false)
+    const reportedOnceRef = useRef(false)
+    const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const onBoundsChangeRef = useRef(onBoundsChange)
+
+    useEffect(() => {
+        onBoundsChangeRef.current = onBoundsChange
+    }, [onBoundsChange])
+
+    const publish = useCallback((map: google.maps.Map): boolean => {
+        const bounds = boundsFromMap(map)
+        if (!bounds) return false
+        onBoundsChangeRef.current(bounds)
+        reportedOnceRef.current = true
+        return true
+    }, [])
+
+    // Library wires Map event props when the instance exists — prefer that
+    // over a hand-rolled useEffect(addListener) that can miss the first idle.
+    const handleIdle = useCallback(
+        (ev: MapEvent) => {
+            if (programmaticMoveRef.current) {
+                programmaticMoveRef.current = false
+                if (reportedOnceRef.current) return
+            }
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+            debounceTimerRef.current = setTimeout(() => {
+                publish(ev.map)
+            }, IDLE_DEBOUNCE_MS)
+        },
+        [publish]
+    )
+
+    const handleTilesLoaded = useCallback(
+        (ev: MapEvent) => {
+            setMapReady(true)
+            // Tiles mean projection/bounds are available — seed Nearby even if
+            // the first idle was already consumed before React subscribed.
+            if (!reportedOnceRef.current) publish(ev.map)
+        },
+        [publish]
+    )
+
+    useEffect(() => {
+        return () => {
+            if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+        }
+    }, [])
+
     if (!apiKey) return <div className="map-skeleton relative h-full w-full" />
 
     return (
@@ -137,11 +166,12 @@ export function HomeMap({
                     defaultZoom={userLocation ? 18 : 15}
                     disableDefaultUI
                     gestureHandling="greedy"
-                    onTilesLoaded={() => setMapReady(true)}
+                    onIdle={handleIdle}
+                    onTilesLoaded={handleTilesLoaded}
                 >
                     <MapController
                         selectedStop={selectedStop}
-                        onBoundsChange={onBoundsChange}
+                        programmaticMoveRef={programmaticMoveRef}
                     />
 
                     {mapReady && userLocation && (
