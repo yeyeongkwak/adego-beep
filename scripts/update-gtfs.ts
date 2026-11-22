@@ -86,7 +86,8 @@ async function main() {
         .maybeSingle()
 
     if (existingError) throw existingError
-    if (existing) {
+    // GTFS_FORCE=1 re-imports the same file (e.g. after changing this script).
+    if (existing && !process.env.GTFS_FORCE) {
         console.log('[gtfs] same hash — skip')
         await ignoreErrors(
             supabase
@@ -166,11 +167,11 @@ async function main() {
             stop_name: emptyToNull(row.stop_name),
             stop_lat: row.stop_lat ? Number(row.stop_lat) : null,
             stop_lon: row.stop_lon ? Number(row.stop_lon) : null,
+            // stops.txt has no route_type; filled from stop_times below.
             route_type: null as number | null,
             location_type: row.location_type ? Number(row.location_type) : null,
             parent_station: emptyToNull(row.parent_station),
         }))
-        await bulkInsert(supabase, 'gtfs_staging_stops', stops)
 
         // 3. calender
         const calendar = parseCSV('calendar.txt').map((row) => ({
@@ -222,6 +223,27 @@ async function main() {
             stop_sequence: Number(row.stop_sequence),
         }))
         await bulkInsert(supabase, 'gtfs_staging_stop_times', stopTimes, 1000)
+
+        // A stop's icon = the type of the routes that call there. Tram (0) and
+        // rail (1, 2) win over bus (3). Stations get it from their platforms.
+        const routeType = new Map(
+            routes.map((r) => [r.route_id, Number(r.route_type)])
+        )
+        const tripType = new Map(
+            trips.map((t) => [t.trip_id, routeType.get(t.route_id ?? '')])
+        )
+        const stopType = new Map<string, number>()
+        const setType = (id: string | null, type: number | undefined) => {
+            if (id == null || type == null || Number.isNaN(type)) return
+            const prev = stopType.get(id)
+            if (prev == null || type < prev) stopType.set(id, type)
+        }
+        for (const st of stopTimes)
+            setType(st.stop_id, tripType.get(st.trip_id))
+        for (const s of stops)
+            setType(s.parent_station, stopType.get(s.stop_id))
+        for (const s of stops) s.route_type = stopType.get(s.stop_id) ?? null
+        await bulkInsert(supabase, 'gtfs_staging_stops', stops)
 
         // 7. shapes
         const shapes = parseCSV('shapes.txt').map((row) => ({
