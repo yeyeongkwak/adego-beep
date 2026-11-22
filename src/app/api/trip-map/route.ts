@@ -13,6 +13,11 @@ import { getTripStops } from '@/lib/tripStops'
  actually opens, not every vehicle-tracked leg in the result list.
 */
 
+// PostgREST caps each response at 1000 rows. Long Adelaide routes (e.g. 801
+// ≈1310 pts) need a second page — otherwise the city end of the shape is
+// missing and the polyline sits off-screen while stop markers still show.
+const SHAPE_PAGE = 1000
+
 async function getTripShape(
     db: SupabaseClient,
     tripId: string
@@ -25,20 +30,24 @@ async function getTripShape(
     const shapeId = trip.data?.shape_id
     if (trip.error || !shapeId) return []
 
-    const shape = await db
-        .from('gtfs_shapes')
-        .select('shape_pt_lat, shape_pt_lon, shape_pt_sequence')
-        .eq('shape_id', shapeId)
-        .order('shape_pt_sequence', { ascending: true })
-    if (shape.error || !shape.data) return []
+    const points: LatLng[] = []
+    for (let from = 0; ; from += SHAPE_PAGE) {
+        const shape = await db
+            .from('gtfs_shapes')
+            .select('shape_pt_lat, shape_pt_lon, shape_pt_sequence')
+            .eq('shape_id', shapeId)
+            .order('shape_pt_sequence', { ascending: true })
+            .range(from, from + SHAPE_PAGE - 1)
+        if (shape.error || !shape.data) return points
 
-    return shape.data
-        .map((p) =>
-            p.shape_pt_lat != null && p.shape_pt_lon != null
-                ? { lat: p.shape_pt_lat, lng: p.shape_pt_lon }
-                : null
-        )
-        .filter((p): p is LatLng => p != null)
+        for (const p of shape.data) {
+            if (p.shape_pt_lat != null && p.shape_pt_lon != null) {
+                points.push({ lat: p.shape_pt_lat, lng: p.shape_pt_lon })
+            }
+        }
+        if (shape.data.length < SHAPE_PAGE) break
+    }
+    return points
 }
 
 export async function GET(request: NextRequest) {
