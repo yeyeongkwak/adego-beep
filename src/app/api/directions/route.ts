@@ -8,6 +8,7 @@ import { getTripCalls, nearestIndex, type TripCall } from '@/lib/tripStops'
 import { distanceMeters } from '@/util/map/distance'
 import type { StopMode } from '@/types/place'
 import type { GoogleRoute, GoogleStop, TransitStep } from '@/types/google'
+import type { OtpItinerary, OtpLeg, OtpPlace } from '@/types/otp'
 import type { BusLeg, Journey, JourneyLeg, RouteStop } from '@/types/journey'
 import type { LatLng } from '@/types/geo'
 import type {
@@ -16,8 +17,9 @@ import type {
     VehiclePosition,
 } from '@/types/arrival'
 
-// Google finds the route. Then we change each ride's times to our GTFS times
-// (live or timetable). If we can't match a ride, we keep Google's time.
+// OTP (or Google, if OTP_URL isn't set) finds the route. Then we change each
+// ride's times to our GTFS times (live or timetable). If we can't match a
+// ride, we keep the planner's time.
 const COMPUTE_ROUTES_URL =
     'https://routes.googleapis.com/directions/v2:computeRoutes'
 const TZ = 'Australia/Adelaide'
@@ -133,11 +135,11 @@ function mapTransitStep(step: TransitStep, nowEpoch: number): BusLeg {
     }
 }
 
-// Google gives one walk step per instruction, so we add them into one walk.
+type WalkStep = { seconds: number; polyline?: string | null }
 
+// Google gives one walk step per instruction, so we add them into one walk.
 function buildLegs(
-    steps: TransitStep[],
-    nowEpoch: number,
+    steps: (BusLeg | WalkStep)[],
     destinationName: string
 ): JourneyLeg[] {
     const legs: JourneyLeg[] = []
@@ -156,13 +158,12 @@ function buildLegs(
         walkPolylines = []
     }
     for (const step of steps) {
-        if (step.travelMode === 'TRANSIT') {
+        if ('type' in step) {
             flushWalk()
-            legs.push(mapTransitStep(step, nowEpoch))
+            legs.push(step)
         } else {
-            walkSeconds += durationToSeconds(step.staticDuration)
-            const encoded = step.polyline?.encodedPolyline
-            if (encoded) walkPolylines.push(encoded)
+            walkSeconds += step.seconds
+            if (step.polyline) walkPolylines.push(step.polyline)
         }
     }
     flushWalk()
@@ -552,17 +553,178 @@ async function fetchGooglePlans(
     // Google gives one leg. Walks and rides are in its steps.
     return ((data.routes ?? []) as GoogleRoute[]).map((route) => ({
         legs: buildLegs(
-            route.legs?.[0]?.steps ?? [],
-            nowEpoch,
+            (route.legs?.[0]?.steps ?? []).map((step) =>
+                step.travelMode === 'TRANSIT'
+                    ? mapTransitStep(step, nowEpoch)
+                    : {
+                          seconds: durationToSeconds(step.staticDuration),
+                          polyline: step.polyline?.encodedPolyline,
+                      }
+            ),
             destination.name
         ),
         durationS: durationToSeconds(route.duration),
     }))
 }
 
+// OTP's default search window is short, so late at night it finds nothing.
+// 6 h reaches the first morning trips (Google does this too).
+// ponytail: +~0.3 s on every query; retry with the wide window only when the
+// first try is empty if the server gets slow.
+const OTP_PLAN_QUERY = `query Plan(
+    $origin: PlanLabeledLocationInput!
+    $destination: PlanLabeledLocationInput!
+    $dateTime: PlanDateTimeInput
+) {
+    planConnection(
+        origin: $origin
+        destination: $destination
+        dateTime: $dateTime
+        first: 5
+        searchWindow: "PT6H"
+    ) {
+        edges {
+            node {
+                duration
+                legs {
+                    mode
+                    duration
+                    realTime
+                    headsign
+                    start { scheduledTime estimated { time } }
+                    end { scheduledTime estimated { time } }
+                    from { name lat lon stop { code } }
+                    to { name lat lon }
+                    route { shortName longName color }
+                    trip { gtfsId }
+                    legGeometry { points }
+                }
+            }
+        }
+    }
+}`
+
+function otpModeToStopMode(mode: string | undefined): StopMode {
+    switch (mode) {
+        case 'TRAM':
+            return 'TRAM'
+        case 'RAIL':
+        case 'SUBWAY':
+        case 'MONORAIL':
+            return 'RAIL'
+        default:
+            return 'BUS'
+    }
+}
+
+// OTP puts the feed id in front ("AM:1179604"). Our GTFS tables don't have it.
+const stripFeedId = (id: string | undefined) =>
+    id ? id.replace(/^[^:]+:/, '') : null
+
+function otpPlaceToStop(place: OtpPlace | undefined): RouteStop | null {
+    if (place?.lat == null || place.lon == null) return null
+    return { name: place.name ?? '', lat: place.lat, lng: place.lon }
+}
+
+// A ride from OTP. The enricher still checks it against our GTFS times.
+function mapOtpRide(leg: OtpLeg, nowEpoch: number): BusLeg {
+    const from = otpPlaceToStop(leg.from)
+    const to = otpPlaceToStop(leg.to)
+    const scheduledDepartureEpoch = isoToEpoch(leg.start?.scheduledTime)
+    const liveDeparture = isoToEpoch(leg.start?.estimated?.time)
+    const departureEpoch = liveDeparture ?? scheduledDepartureEpoch
+    const liveArrival = isoToEpoch(leg.end?.estimated?.time)
+    return {
+        type: 'bus',
+        mode: otpModeToStopMode(leg.mode),
+        route: leg.route?.shortName ?? leg.route?.longName ?? '?',
+        color: leg.route?.color ? `#${leg.route.color}` : null,
+        headsign: leg.headsign ?? '',
+        from: from?.name ?? '',
+        fromCode: leg.from?.stop?.code ?? null,
+        to: to?.name ?? '',
+        path: [from, to].filter((s): s is RouteStop => s != null),
+        shape: [],
+        polyline: leg.legGeometry?.points ?? null,
+        tripId: stripFeedId(leg.trip?.gtfsId),
+        minutes: Math.round((leg.duration ?? 0) / 60),
+        departureEpoch,
+        scheduledDepartureEpoch,
+        arrivalEpoch: liveArrival ?? isoToEpoch(leg.end?.scheduledTime),
+        arrivalLive: liveArrival != null,
+        departsIn:
+            departureEpoch != null
+                ? minutesFromNow(departureEpoch, nowEpoch)
+                : 0,
+        live: liveDeparture != null,
+        delayMin:
+            liveDeparture != null && scheduledDepartureEpoch != null
+                ? Math.round((liveDeparture - scheduledDepartureEpoch) / 60)
+                : null,
+        vehicle: null,
+    }
+}
+
+async function fetchOtpPlans(
+    otpUrl: string,
+    origin: RouteStop,
+    destination: RouteStop,
+    time: TripTimeBody | null,
+    nowEpoch: number
+): Promise<Plan[] | null> {
+    const place = (s: RouteStop) => ({
+        location: { coordinate: { latitude: s.lat, longitude: s.lng } },
+    })
+    const res = await fetch(`${otpUrl}/otp/gtfs/v1`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            query: OTP_PLAN_QUERY,
+            variables: {
+                origin: place(origin),
+                destination: place(destination),
+                ...(time && {
+                    dateTime: {
+                        [time.mode === 'depart'
+                            ? 'earliestDeparture'
+                            : 'latestArrival']: time.at,
+                    },
+                }),
+            },
+        }),
+        // Self-hosted, so don't hang the request if the server is down.
+        signal: AbortSignal.timeout(10_000),
+    })
+    const data = await res.json().catch(() => null)
+    if (!res.ok || data?.errors) {
+        console.warn(
+            `[directions] OTP ${res.status}: ${data?.errors?.[0]?.message ?? 'unknown'}`
+        )
+        return null
+    }
+    const edges: { node?: OtpItinerary }[] =
+        data?.data?.planConnection?.edges ?? []
+    return edges.map(({ node }) => ({
+        legs: buildLegs(
+            (node?.legs ?? []).map((leg) =>
+                leg.mode === 'WALK'
+                    ? {
+                          seconds: leg.duration ?? 0,
+                          polyline: leg.legGeometry?.points,
+                      }
+                    : mapOtpRide(leg, nowEpoch)
+            ),
+            destination.name
+        ),
+        durationS: node?.duration ?? 0,
+    }))
+}
+
 export async function POST(request: NextRequest) {
+    // OTP when OTP_URL is set, else Google.
+    const otpUrl = process.env.OTP_URL
     const key = process.env.GOOGLE_MAPS_API_KEY
-    if (!key) {
+    if (!otpUrl && !key) {
         return NextResponse.json(
             { error: 'Directions is not configured' },
             { status: 500 }
@@ -598,11 +760,27 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        // A refresh sends back the plans from last time, so we skip Google.
+        // A refresh sends back the plans from last time, so we skip the planner.
         const sentPlans = parsePlans(body?.plans)
         const plans =
             sentPlans ??
-            (await fetchGooglePlans(key, originStop, destStop, time, nowEpoch))
+            (otpUrl
+                ? await fetchOtpPlans(
+                      otpUrl,
+                      originStop,
+                      destStop,
+                      time,
+                      nowEpoch
+                  )
+                : key
+                  ? await fetchGooglePlans(
+                        key,
+                        originStop,
+                        destStop,
+                        time,
+                        nowEpoch
+                    )
+                  : null)
         if (!plans) return NextResponse.json({ journeys: [] })
 
         // For a later trip, look up our times from Google's first bus, not now.
