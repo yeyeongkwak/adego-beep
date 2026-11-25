@@ -675,6 +675,8 @@ async function fetchOtpPlans(
     const place = (s: RouteStop) => ({
         location: { coordinate: { latitude: s.lat, longitude: s.lng } },
     })
+    // null = OTP failed (down, timeout, error), so the caller falls back to
+    // Google. An empty list is a real "no trips" answer.
     const res = await fetch(`${otpUrl}/otp/gtfs/v1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -694,7 +696,11 @@ async function fetchOtpPlans(
         }),
         // Self-hosted, so don't hang the request if the server is down.
         signal: AbortSignal.timeout(10_000),
+    }).catch((error: Error) => {
+        console.warn(`[directions] OTP unreachable: ${error.message}`)
+        return null
     })
+    if (!res) return null
     const data = await res.json().catch(() => null)
     if (!res.ok || data?.errors) {
         console.warn(
@@ -721,7 +727,7 @@ async function fetchOtpPlans(
 }
 
 export async function POST(request: NextRequest) {
-    // OTP when OTP_URL is set, else Google.
+    // OTP when OTP_URL is set; Google if it isn't or OTP fails.
     const otpUrl = process.env.OTP_URL
     const key = process.env.GOOGLE_MAPS_API_KEY
     if (!otpUrl && !key) {
@@ -772,15 +778,16 @@ export async function POST(request: NextRequest) {
                       time,
                       nowEpoch
                   )
-                : key
-                  ? await fetchGooglePlans(
-                        key,
-                        originStop,
-                        destStop,
-                        time,
-                        nowEpoch
-                    )
-                  : null)
+                : null) ??
+            (key
+                ? await fetchGooglePlans(
+                      key,
+                      originStop,
+                      destStop,
+                      time,
+                      nowEpoch
+                  )
+                : null)
         if (!plans) return NextResponse.json({ journeys: [] })
 
         // For a later trip, look up our times from Google's first bus, not now.
