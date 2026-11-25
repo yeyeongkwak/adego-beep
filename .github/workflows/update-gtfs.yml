@@ -2,9 +2,9 @@ name: Update GTFS
 
 on:
     schedule:
-        # Daily: Adelaide Metro republishes mid-week, and an unchanged zip is
-        # skipped by hash, so most runs are just a download.
-        - cron: '30 17 * * *' # 3-4am (Adelaide Timezone)
+        # Hourly: Adelaide Metro has no "new feed" notice, so we poll.
+        # An unchanged zip is skipped by hash, so most runs are just a download.
+        - cron: '30 * * * *'
     workflow_dispatch:
 
 jobs:

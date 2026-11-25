@@ -1,0 +1,26 @@
+# Server copy of the OTP setup. The otp-graph workflow copies this folder to
+# /opt/otp on the VM and puts graph.obj next to it.
+services:
+    otp:
+        # Must match the version that built graph.obj, or OTP won't load it.
+        image: opentripplanner/opentripplanner:2.9.0
+        command: ['--load', '--serve']
+        environment:
+            # Measured: the container uses ~0.9GB with 1G heap.
+            JAVA_OPTS: -Xmx1G
+        volumes:
+            - ./:/var/opentripplanner
+        restart: unless-stopped
+
+    caddy:
+        image: caddy:2.10
+        ports:
+            - '80:80'
+            - '443:443'
+        volumes:
+            - ./Caddyfile:/etc/caddy/Caddyfile:ro
+            - caddy_data:/data
+        restart: unless-stopped
+
+volumes:
+    caddy_data:

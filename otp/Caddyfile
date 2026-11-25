@@ -1,0 +1,8 @@
+# Caddy gets the HTTPS certificate by itself once DNS points here.
+# Only the GraphQL API is public; the debug UI and other endpoints are not.
+otp.adegobeep.com {
+	handle /otp/gtfs/v1* {
+		reverse_proxy otp:8080
+	}
+	respond 404
+}
