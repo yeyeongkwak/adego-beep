@@ -9,6 +9,7 @@
         "lint": "eslint",
         "format": "prettier --write .",
         "gtfs:update": "tsx scripts/update-gtfs.ts",
+        "traces:collect": "tsx scripts/collect-traces.ts",
         "ci:verify": "yarn lint && yarn prettier --check . && yarn build",
         "postinstall": "simple-git-hooks",
         "db:types": "supabase gen types typescript --remote=mefzsqfzfgqsshljprds --schema public > src/types/database.ts"
