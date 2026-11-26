@@ -1,5 +1,6 @@
 import type { LatLng } from '@/types/geo'
 import type { StopMode } from '@/types/place'
+import type { ServiceAlert } from '@/types/arrival'
 
 // Journey result: walk, ride, walk. One card for each option.
 export type RouteStop = LatLng & { name: string }
@@ -41,6 +42,8 @@ export type BusLeg = {
     // stopsAway is null if the vehicle is still on an earlier trip in the
     // block. Then we only show where it is.
     vehicle: (LatLng & { stopsAway: number | null; nearStop: string }) | null
+    // Adelaide Metro notices for this route at departure time.
+    alerts?: ServiceAlert[]
 }
 
 export type JourneyLeg = WalkLeg | BusLeg

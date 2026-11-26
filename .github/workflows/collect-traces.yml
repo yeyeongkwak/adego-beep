@@ -1,0 +1,33 @@
+name: Collect detour traces
+
+on:
+    schedule:
+        # Each run polls for ~55 min, so hourly runs cover the day.
+        - cron: '0 * * * *'
+    workflow_dispatch:
+
+concurrency:
+    group: collect-traces
+    cancel-in-progress: false
+
+jobs:
+    collect:
+        runs-on: ubuntu-latest
+        environment: Production
+        timeout-minutes: 65
+        steps:
+            - uses: actions/checkout@v5
+
+            - run: corepack enable
+
+            - uses: actions/setup-node@v5
+              with:
+                  node-version: 24
+
+            - run: yarn install --immutable
+
+            - name: Collect positions of buses on a detour
+              run: yarn traces:collect
+              env:
+                  NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+                  SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}

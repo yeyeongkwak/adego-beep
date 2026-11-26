@@ -1,3 +1,5 @@
+import type { LatLng } from '@/types/geo'
+
 // One live time for one stop, from the feed.
 export type StopArrivalUpdate = {
     tripId: string
@@ -15,6 +17,22 @@ export type FeedSnapshot = {
     byTripId: Map<string, StopArrivalUpdate[]>
     cancelledTrips: Set<string>
     skippedByStopId: Map<string, Set<string>>
+}
+
+// An Adelaide Metro notice (detour, stop closure) for some routes. The feed
+// only names routes and gives free text, so this is what we can show.
+export type ServiceAlert = {
+    id: string
+    title: string
+    text: string
+    url: string | null
+    // Stops on this ride the notice closes or moves. Missing if the notice
+    // names no stops we could read.
+    stops?: string[]
+    // Where it says to go instead, near those stops.
+    alternatives?: (LatLng & { name: string })[]
+    // A detour: the bus may not follow the usual line on the map.
+    detour?: boolean
 }
 
 // Where one vehicle is now.

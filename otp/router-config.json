@@ -1,0 +1,16 @@
+{
+    "updaters": [
+        {
+            "type": "stop-time-updater",
+            "feedId": "AM",
+            "url": "https://gtfs.adelaidemetro.com.au/v1/realtime/trip_updates",
+            "frequency": "30s"
+        },
+        {
+            "type": "real-time-alerts",
+            "feedId": "AM",
+            "url": "https://gtfs.adelaidemetro.com.au/v1/realtime/service_alerts",
+            "frequency": "60s"
+        }
+    ]
+}
