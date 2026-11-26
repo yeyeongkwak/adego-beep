@@ -4,7 +4,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getStopArrivals } from '@/lib/arrivals/stopArrivals'
 import { getBlockTripIds } from '@/lib/arrivals/block'
 import { findVehicleForTrips, getTripUpdates } from '@/lib/arrivals/realtime'
-import { getTripCalls, nearestIndex, type TripCall } from '@/lib/tripStops'
+import { getRouteAlerts } from '@/lib/arrivals/alerts'
+import {
+    getTripCalls,
+    nearestIndex,
+    rideStops,
+    type TripCall,
+} from '@/lib/tripStops'
 import { distanceMeters } from '@/util/map/distance'
 import type { StopMode } from '@/types/place'
 import type { GoogleRoute, GoogleStop, TransitStep } from '@/types/google'
@@ -473,7 +479,7 @@ function createEnricher(
         return enriched
     }
 
-    return { enrich, prefetch }
+    return { enrich, prefetch, callsFor }
 }
 
 type TripTimeBody = { mode: 'depart' | 'arrive'; at: string }
@@ -804,7 +810,12 @@ export async function POST(request: NextRequest) {
                 : undefined
 
         const db = createPublicClient()
-        const { enrich, prefetch } = createEnricher(db, nowEpoch, fromEpoch)
+        const { enrich, prefetch, callsFor } = createEnricher(
+            db,
+            nowEpoch,
+            fromEpoch
+        )
+        const alertsFor = getRouteAlerts(db)
 
         const built = await Promise.all(
             plans.map(async (plan, i) => {
@@ -832,7 +843,22 @@ export async function POST(request: NextRequest) {
                         continue
                     }
                     const ride = await enrich(leg, readyAt)
-                    legs.push(ride)
+                    const onRide =
+                        ride.tripId && leg.path.length > 1
+                            ? rideStops(
+                                  await callsFor(ride.tripId),
+                                  leg.path[0],
+                                  leg.path.at(-1)!
+                              )
+                            : null
+                    const alerts = await (
+                        await alertsFor
+                    )(
+                        ride.route,
+                        ride.departureEpoch ?? nowEpoch,
+                        onRide ?? undefined
+                    )
+                    legs.push(alerts.length ? { ...ride, alerts } : ride)
                     readyAt =
                         ride.arrivalEpoch != null
                             ? ride.arrivalEpoch + TRANSFER_BUFFER_S
