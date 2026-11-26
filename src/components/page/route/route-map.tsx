@@ -7,13 +7,16 @@ import {
     Map,
     useMap,
 } from '@vis.gl/react-google-maps'
-import { MapPin } from 'lucide-react'
+import { Check, MapPin, TriangleAlert } from 'lucide-react'
 import type { BusLeg, Journey, WalkLeg } from '@/types/journey'
 import type { LatLng } from '@/types/geo'
 import { ModeIcon } from './common'
 import { haversineKm } from '@/util/map/distance'
 import { decodePolyline } from '@/util/map/polyline'
 import { fitCamera, type Padding } from '@/util/map/fitCamera'
+import { noticeAlternatives, noticeStops, onDetour } from '@/util/route'
+
+const NOTICE_COLOR = '#d97706' // amber-600
 
 /* Draws the legs as polylines (bus solid in route colour, walks dotted) and
 the stops, Google Maps style. Lines, camera and the user's dot are separate so
@@ -39,17 +42,18 @@ function rideCallouts(buses: BusLeg[]): Callout[] {
         const color = bus.color ?? 'var(--primary)'
         if (!board || !alight) return
         const prev = out[out.length - 1]
+        const named = noticeStops(bus)
+        const notice = { text: 'See notice', color: NOTICE_COLOR }
         const boardRow = { text: `Board ${bus.route}`, color }
         if (i > 0 && prev && haversineKm(prev.at, board) < TRANSFER_MERGE_KM) {
             prev.rows.push(boardRow)
         } else {
             out.push({ at: board, title: board.name, rows: [boardRow] })
         }
-        out.push({
-            at: alight,
-            title: alight.name,
-            rows: [{ text: `Get off ${bus.route}`, color }],
-        })
+        if (named.has(board.name)) out.at(-1)!.rows.push(notice)
+        const alightRows = [{ text: `Get off ${bus.route}`, color }]
+        if (named.has(alight.name)) alightRows.push(notice)
+        out.push({ at: alight, title: alight.name, rows: alightRows })
     })
     return out
 }
@@ -106,13 +110,31 @@ function JourneyLines({ journey }: { journey: Journey }) {
         const lines: google.maps.Polyline[] = []
 
         buses.forEach((bus, i) => {
+            const color = bus.color ?? '#002b5c'
+            // On a detour the usual line may be wrong, so draw it dashed.
+            const dashed = onDetour(bus)
             lines.push(
                 new google.maps.Polyline({
                     map,
                     path: busLines[i],
-                    strokeColor: bus.color ?? '#002b5c',
+                    strokeColor: color,
                     strokeWeight: 5,
-                    strokeOpacity: 0.9,
+                    strokeOpacity: dashed ? 0 : 0.9,
+                    icons: dashed
+                        ? [
+                              {
+                                  icon: {
+                                      path: 'M 0,-1 0,1',
+                                      strokeColor: color,
+                                      strokeOpacity: 0.9,
+                                      strokeWeight: 5,
+                                      scale: 3,
+                                  },
+                                  offset: '0',
+                                  repeat: '16px',
+                              },
+                          ]
+                        : undefined,
                 })
             )
         })
@@ -231,6 +253,7 @@ const journeyPoints = (journey: Journey): LatLng[] => {
         journey.origin,
         journey.destination,
         ...buses.flatMap((b) => b.path),
+        ...buses.flatMap(noticeAlternatives),
         ...busLines.flat(),
         ...walkLines.flat(),
     ]
@@ -403,7 +426,7 @@ export function RouteMap({
                             )}
 
                             {buses.map((bus) => {
-                                const color = bus.color ?? 'var(--primary)'
+                                const named = noticeStops(bus)
                                 const last = bus.path.length - 1
                                 return bus.path.map((stop, i) => {
                                     const isEnd = i === 0 || i === last
@@ -411,25 +434,61 @@ export function RouteMap({
                                     // below. (The vehicle sheet's path is the
                                     // full trip, so its ends are just terminals.)
                                     if (isEnd && showEndpoints) return null
+                                    const notice = named.has(stop.name)
+                                    const color = bus.color ?? 'var(--primary)'
                                     return (
                                         <AdvancedMarker
                                             key={`${bus.route}-${i}`}
                                             position={stop}
                                             title={stop.name}
-                                            zIndex={isEnd ? 5 : 1}
+                                            zIndex={isEnd || notice ? 5 : 1}
                                         >
-                                            <div
-                                                className={
-                                                    isEnd
-                                                        ? 'size-4 rounded-full border-4 bg-white shadow'
-                                                        : 'size-2.5 rounded-full border-2 bg-white'
-                                                }
-                                                style={{ borderColor: color }}
-                                            />
+                                            {notice ? (
+                                                // Anchored at bottom-centre;
+                                                // shift down to sit on the stop.
+                                                <div
+                                                    className="flex size-6 translate-y-1/2 items-center justify-center rounded-full border-2 border-white text-white shadow-md"
+                                                    style={{
+                                                        backgroundColor:
+                                                            NOTICE_COLOR,
+                                                    }}
+                                                >
+                                                    <TriangleAlert className="size-3.5" />
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className={
+                                                        isEnd
+                                                            ? 'size-4 rounded-full border-4 bg-white shadow'
+                                                            : 'size-2.5 rounded-full border-2 bg-white'
+                                                    }
+                                                    style={{
+                                                        borderColor: color,
+                                                    }}
+                                                />
+                                            )}
                                         </AdvancedMarker>
                                     )
                                 })
                             })}
+
+                            {buses.flatMap((bus) =>
+                                noticeAlternatives(bus).map((stop) => (
+                                    <AdvancedMarker
+                                        key={`${bus.route}-alt-${stop.name}`}
+                                        position={stop}
+                                        title={`Use instead: ${stop.name}`}
+                                        zIndex={7}
+                                    >
+                                        {/* Anchored at bottom-centre; shift
+                                        down to sit on the stop. */}
+                                        <div className="flex translate-y-1/2 items-center gap-1 rounded-full border-2 border-white bg-emerald-600 py-0.5 pr-2 pl-1 text-[11px] font-bold whitespace-nowrap text-white shadow-md">
+                                            <Check className="size-3.5" />
+                                            Use instead
+                                        </div>
+                                    </AdvancedMarker>
+                                ))
+                            )}
 
                             {showEndpoints &&
                                 rideCallouts(buses).map((c, i) => (

@@ -107,3 +107,19 @@ export function routeUrl(destination: Endpoint, origin?: Endpoint | null) {
     put('dest', destination)
     return `/route?${params}`
 }
+
+// Ride stops an Adelaide Metro notice closes or moves, by GTFS stop name.
+export const noticeStops = (leg: BusLeg) =>
+    new Set(leg.alerts?.flatMap((a) => a.stops ?? []))
+
+// Where the notices say to go instead, once each.
+export const noticeAlternatives = (leg: BusLeg) => [
+    ...new Map(
+        leg.alerts?.flatMap((a) => a.alternatives ?? []).map((s) => [s.name, s])
+    ).values(),
+]
+
+// A detour notice is on this ride, so the line we draw (the usual GTFS
+// shape) may be wrong. No feed gives the detour's own path.
+export const onDetour = (leg: BusLeg) =>
+    leg.alerts?.some((a) => a.detour) ?? false

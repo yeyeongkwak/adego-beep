@@ -9,6 +9,7 @@ import {
     Footprints,
     LocateFixed,
     MapPin,
+    Megaphone,
     RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -51,6 +52,14 @@ const JourneyCard = ({
     const far = planned || departsIn > 60
     const [clock, meridiem] = journey.departAt.split(/\s+/)
     const hint = bus && !far && catchHint(walkMin, departsIn)
+    // Two rides on the same route share their notices; show each once.
+    const alerts = [
+        ...new Map(
+            journey.legs
+                .flatMap((l) => (l.type === 'bus' ? (l.alerts ?? []) : []))
+                .map((a) => [a.id, a])
+        ).values(),
+    ]
 
     // Save on tap, then open /route/<id>: the id is a lasting link, unlike
     // journey.id ("route-0"), which is just this result list's position.
@@ -225,6 +234,18 @@ const JourneyCard = ({
                         >
                             <hint.Icon className="size-4 shrink-0" />
                             {hint.text}
+                        </p>
+                    )}
+
+                    {alerts.length > 0 && (
+                        <p className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                            <Megaphone className="size-4 shrink-0" />
+                            <span className="truncate">{alerts[0].title}</span>
+                            {alerts.length > 1 && (
+                                <span className="ml-auto shrink-0 text-xs font-semibold">
+                                    +{alerts.length - 1}
+                                </span>
+                            )}
                         </p>
                     )}
 
