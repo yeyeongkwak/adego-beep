@@ -1,0 +1,93 @@
+name: Update OTP graph
+
+on:
+    # Runs after Update GTFS so OTP trip ids match the ones in Supabase.
+    # Skips when the VM already has this GTFS version.
+    workflow_run:
+        workflows: ['Update GTFS']
+        types: [completed]
+    workflow_dispatch:
+        inputs:
+            force:
+                description: Rebuild even if the GTFS version is unchanged
+                type: boolean
+                default: false
+
+concurrency: otp-graph
+
+jobs:
+    build_and_deploy:
+        # A failed Supabase update would leave OTP ahead of it, so wait.
+        if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+        runs-on: ubuntu-latest
+        environment: Production
+        permissions:
+            contents: read
+        env:
+            GTFS_BASE: https://gtfs.adelaidemetro.com.au/v1/static/latest
+            VM: ${{ secrets.OTP_VM_USER }}@${{ secrets.OTP_VM_HOST }}
+        steps:
+            - name: Checkout the repository
+              uses: actions/checkout@v5
+
+            - name: Set up SSH
+              run: |
+                  mkdir -p ~/.ssh
+                  printf '%s\n' "${{ secrets.OTP_VM_SSH_KEY }}" > ~/.ssh/id_ed25519
+                  chmod 600 ~/.ssh/id_ed25519
+                  printf '%s\n' "${{ secrets.OTP_VM_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+            - name: Check GTFS version
+              id: version
+              run: |
+                  new=$(curl -fsS "$GTFS_BASE/version.txt")
+                  old=$(ssh "$VM" cat /opt/otp/.gtfs-version 2>/dev/null || echo none)
+                  echo "new=$new" >> "$GITHUB_OUTPUT"
+                  echo "GTFS $old -> $new"
+                  if [ "$new" = "$old" ] && [ "${{ inputs.force }}" != "true" ]; then
+                      echo "skip=true" >> "$GITHUB_OUTPUT"
+                  fi
+
+            # streetGraph.obj (OSM streets) changes rarely, so it's built by
+            # hand and kept as a release asset. Only the transit part is
+            # rebuilt here (~3GB heap, too much for the VM).
+            - name: Build graph
+              if: steps.version.outputs.skip != 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  mkdir build
+                  cp otp/build-config.json build/
+                  gh release download otp-street-2.9.0 -p streetGraph.obj -D build
+                  curl -fsSL -o build/adelaide-gtfs.zip "$GTFS_BASE/google_transit.zip"
+                  docker run --rm -e JAVA_OPTS=-Xmx3G \
+                      -v "$PWD/build:/var/opentripplanner" \
+                      opentripplanner/opentripplanner:2.9.0 --loadStreet --save
+
+            # OTP is down for a few seconds while it reloads; the app falls
+            # back to Google meanwhile.
+            - name: Deploy to VM
+              if: steps.version.outputs.skip != 'true'
+              run: |
+                  scp otp/docker-compose.yml otp/Caddyfile otp/router-config.json "$VM:/opt/otp/"
+                  scp build/graph.obj "$VM:/opt/otp/graph.obj.new"
+                  ssh "$VM" "cd /opt/otp \
+                      && mv graph.obj.new graph.obj \
+                      && echo '${{ steps.version.outputs.new }}' > .gtfs-version \
+                      && docker compose up -d \
+                      && docker compose restart otp"
+
+            - name: Send Discord notification on failure
+              if: failure()
+              run: |
+                  curl -X POST ${{ secrets.DISCORD_SCRIPT_WEBHOOK }} \
+                    -H 'Content-Type: application/json' \
+                    -d '{
+                      "content": "❌ OTP Graph Update Failed",
+                      "embeds": [{
+                        "title": "OTP graph build / deploy",
+                        "description": "The OTP graph update failed. OTP keeps serving the old graph.",
+                        "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+                        "color": 16711680
+                      }]
+                    }'

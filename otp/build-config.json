@@ -1,0 +1,6 @@
+{
+    "osmDefaults": { "timeZone": "Australia/Adelaide" },
+    "transitFeeds": [
+        { "type": "gtfs", "feedId": "AM", "source": "adelaide-gtfs.zip" }
+    ]
+}

@@ -6,8 +6,10 @@ import {
     ArrowLeft,
     ChevronDown,
     ChevronUp,
+    ExternalLink,
     Footprints,
     MapPin,
+    Megaphone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -19,7 +21,13 @@ import { useWatchedLocation } from '@/hooks/useGeolocation'
 import { useRideStatuses } from '@/hooks/useRideStatus'
 import { decodePolyline } from '@/util/map/polyline'
 import { formatArrival } from '@/util/arrival'
-import { delayStatus, fareNote, routeUrl } from '@/util/route'
+import {
+    delayStatus,
+    fareNote,
+    noticeStops,
+    onDetour,
+    routeUrl,
+} from '@/util/route'
 import { ModeIcon } from './common'
 
 const RouteBadge = ({ leg }: { leg: BusLeg }) => (
@@ -157,6 +165,13 @@ const Title = ({ children }: { children: React.ReactNode }) => (
     </p>
 )
 
+// A notice names this stop (closed, moved or the alternative).
+const NoticeTag = () => (
+    <span className="font-medium text-amber-600 dark:text-amber-400">
+        {' · '}Notice
+    </span>
+)
+
 const Sub = ({ children }: { children: React.ReactNode }) => (
     <p className="mt-0.5 text-[13px] text-zinc-500 dark:text-zinc-400">
         {children}
@@ -195,6 +210,64 @@ const FareNote = ({ leg }: { leg: BusLeg }) => {
         >
             {note.text}
         </p>
+    )
+}
+
+// Adelaide Metro notices for this ride's route. Tap one to read it.
+const RideAlerts = ({ leg }: { leg: BusLeg }) => {
+    if (!leg.alerts?.length) return null
+    return (
+        <div className="mt-2 space-y-1.5">
+            {onDetour(leg) && (
+                <p className="text-[13px] font-medium text-amber-700 dark:text-amber-400">
+                    On a detour — the bus may not follow the dashed line on the
+                    map.
+                </p>
+            )}
+            {leg.alerts.map((alert) => (
+                <details
+                    key={alert.id}
+                    className="group rounded-xl bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"
+                >
+                    <summary className="flex cursor-pointer list-none items-start gap-2 text-[13px] font-medium">
+                        <Megaphone className="mt-0.5 size-3.5 shrink-0" />
+                        <span className="flex-1">
+                            {alert.title}
+                            {alert.stops && (
+                                <span className="mt-0.5 block text-xs font-normal opacity-80">
+                                    On your ride: {alert.stops.join(', ')}
+                                </span>
+                            )}
+                            {alert.alternatives && (
+                                <span className="mt-0.5 block text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                                    Use instead:{' '}
+                                    {alert.alternatives
+                                        .map((s) => s.name)
+                                        .join(', ')}
+                                </span>
+                            )}
+                        </span>
+                        <ChevronDown className="mt-0.5 size-3.5 shrink-0 transition-transform group-open:rotate-180" />
+                    </summary>
+                    {alert.text && (
+                        <p className="mt-2 text-[13px] leading-relaxed whitespace-pre-line">
+                            {alert.text}
+                        </p>
+                    )}
+                    {alert.url && (
+                        <a
+                            href={alert.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold underline underline-offset-2"
+                        >
+                            Adelaide Metro notice
+                            <ExternalLink className="size-3" />
+                        </a>
+                    )}
+                </details>
+            ))}
+        </div>
     )
 }
 
@@ -316,7 +389,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                     onPointerMove={moveDrag}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
-                    className="relative flex h-[72px] shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-zinc-100 px-6 select-none active:cursor-grabbing dark:border-zinc-800"
+                    className="relative flex h-[84px] shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-zinc-100 px-6 pt-4 select-none active:cursor-grabbing dark:border-zinc-800"
                 >
                     <button
                         type="button"
@@ -406,6 +479,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                         const board = leg.path[0]
                         const alight = leg.path.at(-1)
                         const showStops = openStops[i] ?? false
+                        const named = noticeStops(leg)
                         return (
                             <Fragment key={i}>
                                 <Step
@@ -442,6 +516,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                         )}
                                         <FareNote leg={leg} />
                                     </FocusButton>
+                                    <RideAlerts leg={leg} />
                                 </Step>
 
                                 <Step
@@ -463,6 +538,9 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                             Board
                                             {leg.fromCode &&
                                                 ` · Stop ${leg.fromCode}`}
+                                            {board && named.has(board.name) && (
+                                                <NoticeTag />
+                                            )}
                                         </Sub>
                                     </FocusButton>
                                 </Step>
@@ -485,6 +563,9 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                             className="inline-flex h-7 items-center gap-1 rounded-full bg-zinc-100 px-3 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
                                         >
                                             {middle.length + 1} stops
+                                            {middle.some((s) =>
+                                                named.has(s.name)
+                                            ) && <NoticeTag />}
                                             <ChevronDown
                                                 className={cn(
                                                     'size-3.5 transition-transform',
@@ -515,6 +596,9 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                             >
                                                 <p className="truncate text-[13px] leading-6 text-zinc-500 dark:text-zinc-400">
                                                     {stop.name}
+                                                    {named.has(stop.name) && (
+                                                        <NoticeTag />
+                                                    )}
                                                 </p>
                                             </FocusButton>
                                         </Step>
@@ -541,7 +625,13 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                                         <p className="truncate text-sm leading-6 font-medium">
                                             {leg.to}
                                         </p>
-                                        <Sub>Get off</Sub>
+                                        <Sub>
+                                            Get off
+                                            {alight &&
+                                                named.has(alight.name) && (
+                                                    <NoticeTag />
+                                                )}
+                                        </Sub>
                                     </FocusButton>
                                 </Step>
                             </Fragment>
