@@ -389,7 +389,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                     onPointerMove={moveDrag}
                     onPointerUp={endDrag}
                     onPointerCancel={endDrag}
-                    className="relative flex h-[72px] shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-zinc-100 px-6 select-none active:cursor-grabbing dark:border-zinc-800"
+                    className="relative flex h-[84px] shrink-0 cursor-grab touch-none items-center justify-between gap-3 border-b border-zinc-100 px-6 pt-4 select-none active:cursor-grabbing dark:border-zinc-800"
                 >
                     <button
                         type="button"
