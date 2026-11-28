@@ -2,10 +2,18 @@
 
 import { useRouter } from 'next/navigation'
 import { MapPin, Star } from 'lucide-react'
+import { Popover } from 'radix-ui'
+import { cn } from '@/lib/utils'
+import { FAVOURITE_ICONS } from '@/util/favouriteIcon'
 import { useFavourites } from '@/hooks/useFavourites'
 import { routeUrl } from '@/util/route'
 import { toPlaceFavourite } from '@/util/favourite'
-import type { Favourite, Stop, PickedLocation } from '@/types/place'
+import type {
+    Favourite,
+    FavouriteIcon,
+    Stop,
+    PickedLocation,
+} from '@/types/place'
 import { STOP_MODE_STYLE } from '@/util/stopMode'
 import { ListRow } from '@/components/ui/list-row'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -42,13 +50,64 @@ export const FavouritePlaceButton = ({
     )
 }
 
+// The place's icon; tap it to pick Home, School, ...
+const PlaceIconPicker = ({ place }: { place: Favourite }) => {
+    const { setIcon } = useFavourites()
+    const current = place.icon ? FAVOURITE_ICONS[place.icon] : null
+    const Icon = current?.Icon ?? MapPin
+    const choose = (icon: FavouriteIcon | null) =>
+        setIcon('place', place.placeId, icon)
+    return (
+        <Popover.Root>
+            <Popover.Trigger
+                aria-label={`Change icon for ${place.label}`}
+                className="flex size-8 items-center justify-center rounded-full bg-alert/10 text-alert transition-transform active:scale-90"
+            >
+                <Icon className="size-4" />
+            </Popover.Trigger>
+            <Popover.Portal>
+                <Popover.Content
+                    align="start"
+                    sideOffset={6}
+                    collisionPadding={12}
+                    className="z-[95] grid grid-cols-4 gap-1 rounded-xl bg-white p-2 shadow-lg ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10"
+                >
+                    {(
+                        [
+                            [null, { Icon: MapPin, label: 'Pin' }],
+                            ...Object.entries(FAVOURITE_ICONS),
+                        ] as [
+                            FavouriteIcon | null,
+                            (typeof FAVOURITE_ICONS)[FavouriteIcon],
+                        ][]
+                    ).map(([key, { Icon, label }]) => (
+                        <Popover.Close
+                            key={key ?? 'pin'}
+                            aria-label={label}
+                            aria-pressed={(place.icon ?? null) === key}
+                            onClick={() => choose(key)}
+                            className={cn(
+                                'flex flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800',
+                                (place.icon ?? null) === key &&
+                                    'bg-alert/10 text-alert hover:bg-alert/10'
+                            )}
+                        >
+                            <Icon className="size-5" />
+                            {label}
+                        </Popover.Close>
+                    ))}
+                </Popover.Content>
+            </Popover.Portal>
+        </Popover.Root>
+    )
+}
+
 const PlaceRow = ({ place }: { place: Favourite }) => {
     const router = useRouter()
     const { remove } = useFavourites()
     return (
         <ListRow
-            icon={<MapPin className="size-4 text-alert" />}
-            iconClass="bg-alert/10"
+            leading={<PlaceIconPicker place={place} />}
             title={place.label}
             subtitle="Find a route from here"
             onClick={() => router.push(routeUrl(place))}

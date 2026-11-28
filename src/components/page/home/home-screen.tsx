@@ -8,6 +8,7 @@ import {
     PREVIEW_SNAP_POINT,
 } from '@/components/page/home/home-sheet'
 import { useNearbyStops } from '@/hooks/useNearbyStops'
+import { useRecent } from '@/hooks/useRecent'
 import type { MapBounds } from '@/types/geo'
 import type { Stop } from '@/types/place'
 import { boundsAround, distanceMeters } from '@/util/map/distance'
@@ -37,6 +38,7 @@ export function HomeScreen() {
         useNearbyStops(searchBounds)
 
     const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
+    const { record } = useRecent()
 
     const handleSelectStop = (stop: Stop | null) => {
         if (!stop) {
@@ -56,10 +58,16 @@ export function HomeScreen() {
                       })
                   )
                 : undefined)
-        setSelectedStop({
-            ...stop,
-            code: stop.code ?? nearby?.code ?? null,
-            distanceM,
+        const code = stop.code ?? nearby?.code ?? null
+        setSelectedStop({ ...stop, code, distanceM })
+        record({
+            placeType: 'stop',
+            placeId: stop.id,
+            label: stop.name,
+            lat: stop.lat,
+            lng: stop.lng,
+            mode: stop.mode,
+            code,
         })
         setSnapPoint((current) =>
             current === 0 ? PREVIEW_SNAP_POINT : current

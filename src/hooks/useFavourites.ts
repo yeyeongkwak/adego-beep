@@ -5,7 +5,7 @@
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Favourite } from '@/types/place'
+import type { Favourite, FavouriteIcon } from '@/types/place'
 import { createLocalListStore, placeKey } from '@/util/localStore'
 import { useSession } from '@/hooks/useSession'
 
@@ -103,5 +103,34 @@ export function useFavourites() {
         [isFavourite, remove, signedIn, queryClient, queryKey]
     )
 
-    return { favourites, isFavourite, toggle, remove }
+    const setIcon = useCallback(
+        (
+            placeType: Favourite['placeType'],
+            placeId: string,
+            icon: FavouriteIcon | null
+        ) => {
+            const k = placeKey(placeType, placeId)
+            const apply = (list: Favourite[]) =>
+                list.map((f) =>
+                    placeKey(f.placeType, f.placeId) === k ? { ...f, icon } : f
+                )
+            if (!signedIn) {
+                store.write(apply(store.getSnapshot()))
+                return
+            }
+            queryClient.setQueryData<Favourite[]>(queryKey, (current) =>
+                apply(current ?? EMPTY)
+            )
+            void fetch('/api/favourites', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ placeType, placeId, icon }),
+            }).then((res) => {
+                if (!res.ok) void queryClient.invalidateQueries({ queryKey })
+            })
+        },
+        [signedIn, queryClient, queryKey]
+    )
+
+    return { favourites, isFavourite, toggle, remove, setIcon }
 }
