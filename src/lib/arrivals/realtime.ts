@@ -202,6 +202,7 @@ async function loadVehicleFeed(): Promise<VehicleSnapshot> {
         new Uint8Array(await res.arrayBuffer())
     )
 
+    const feedTimestamp = toNumber(feed.header?.timestamp)
     const byTripId = new Map<string, VehiclePosition>()
     for (const entity of feed.entity) {
         const v = entity.vehicle
@@ -216,12 +217,13 @@ async function loadVehicleFeed(): Promise<VehicleSnapshot> {
             lng,
             currentStopSequence: v.currentStopSequence ?? null,
             stopId: v.stopId ?? null,
+            timestamp: toNumber(v.timestamp) ?? feedTimestamp,
         })
     }
 
     return {
         fetchedAt: Date.now(),
-        feedTimestamp: toNumber(feed.header?.timestamp),
+        feedTimestamp,
         byTripId,
     }
 }

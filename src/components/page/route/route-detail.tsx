@@ -19,6 +19,7 @@ import type { StopArrival } from '@/types/arrival'
 import { RouteMap } from './route-map'
 import { useWatchedLocation } from '@/hooks/useGeolocation'
 import { useRideStatuses } from '@/hooks/useRideStatus'
+import { useLiveVehicles } from '@/hooks/useLiveVehicles'
 import { decodePolyline } from '@/util/map/polyline'
 import { formatArrival } from '@/util/arrival'
 import {
@@ -28,7 +29,18 @@ import {
     onDetour,
     routeUrl,
 } from '@/util/route'
-import { ModeIcon } from './common'
+import { ModeIcon, UpdatedAgo } from './common'
+
+// Trip ids repeat every day, so only look for the bus around its own run:
+// from 3 hours before departure until a little after it arrives.
+const LIVE_BEFORE_S = 3 * 60 * 60
+const LIVE_AFTER_S = 10 * 60
+function runsNow(leg: BusLeg, nowS: number) {
+    const dep = leg.departureEpoch ?? leg.scheduledDepartureEpoch
+    if (dep == null) return false
+    const arr = leg.arrivalEpoch ?? dep + leg.minutes * 60
+    return nowS > dep - LIVE_BEFORE_S && nowS < arr + LIVE_AFTER_S
+}
 
 const RouteBadge = ({ leg }: { leg: BusLeg }) => (
     <span
@@ -338,6 +350,29 @@ export function RouteDetail({ journey }: { journey: Journey }) {
     const statusOf = (leg: BusLeg) => statuses[rides.indexOf(leg)]
     const cancelled = rides.filter((r) => statusOf(r)?.cancelled)
 
+    // A saved journey's bus position is old, so the map only shows live ones.
+    const [openedAt] = useState(() => Date.now() / 1000)
+    const liveRides = rides.filter((r) => runsNow(r, openedAt))
+    const live = useLiveVehicles(liveRides)
+    const liveOf = (leg: BusLeg) => live[liveRides.indexOf(leg)] ?? null
+    const mapJourney: Journey = {
+        ...journey,
+        legs: journey.legs.map((leg) => {
+            if (leg.type !== 'bus') return leg
+            const v = liveOf(leg)
+            return {
+                ...leg,
+                vehicle: v && {
+                    lat: v.lat,
+                    lng: v.lng,
+                    stopsAway: null,
+                    nearStop: leg.from,
+                },
+            }
+        }),
+    }
+    const updatedAt = Math.max(...live.map((v) => v?.timestamp ?? -Infinity))
+
     const findAnother = () => {
         const { origin, destination } = journey
         router.push(
@@ -352,7 +387,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
         <div className="relative min-h-0 flex-1 overflow-hidden">
             <div className="absolute inset-0">
                 <RouteMap
-                    journey={journey}
+                    journey={mapJourney}
                     userLocation={userLocation}
                     focus="boarding"
                     target={target}
@@ -367,6 +402,7 @@ export function RouteDetail({ journey }: { journey: Journey }) {
                 >
                     <ArrowLeft className="size-5" />
                 </Button>
+                {Number.isFinite(updatedAt) && <UpdatedAgo at={updatedAt} />}
             </div>
 
             {/* inert when hidden, so it can't be tabbed to or read out. */}

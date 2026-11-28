@@ -5,7 +5,7 @@
 
  Two react-query queries per open:
    1. static  — stops + road-shape (staleTime: Infinity, fetched once per tripId)
-   2. vehicle — live position       (refetchInterval: 30s, keeps the pin moving)
+   2. vehicle — live position       (useLiveVehicles, keeps the pin moving)
 */
 
 import { useQuery } from '@tanstack/react-query'
@@ -19,21 +19,13 @@ import {
 import type { BusLeg, Journey, RouteStop } from '@/types/journey'
 import type { LatLng } from '@/types/geo'
 import { RouteMap } from './route-map'
-
-type VehicleOut = {
-    lat: number
-    lng: number
-    tripId: string
-    currentStopSequence: number | null
-} | null
+import { UpdatedAgo } from './common'
+import { useLiveVehicles } from '@/hooks/useLiveVehicles'
 
 type TripMapResponse = {
     stops: RouteStop[]
     shape: LatLng[]
-    vehicle: VehicleOut
 }
-
-const VEHICLE_POLL_MS = 30_000
 
 async function fetchTripMap(tripId: string): Promise<TripMapResponse> {
     const res = await fetch(
@@ -66,15 +58,7 @@ export function VehicleMapSheet({
             gcTime: 10 * 60 * 1000, // keep in cache 10 min after unmount
         })
 
-    // Live vehicle position, re-polled every 30 s while the sheet is open.
-    const { data: vehicleData } = useQuery<TripMapResponse, Error, VehicleOut>({
-        queryKey: ['trip-map-vehicle', tripId],
-        queryFn: () => fetchTripMap(tripId!),
-        enabled: open && tripId != null,
-        staleTime: VEHICLE_POLL_MS,
-        refetchInterval: VEHICLE_POLL_MS,
-        select: (d) => d.vehicle,
-    })
+    const [vehicleData] = useLiveVehicles(leg ? [leg] : [], open)
 
     const stops = staticData?.stops ?? []
     const shape = staticData?.shape ?? []
@@ -143,6 +127,7 @@ export function VehicleMapSheet({
                             />
                         )
                     )}
+                    {vehicleData && <UpdatedAgo at={vehicleData.timestamp} />}
                     <button
                         type="button"
                         aria-label="Close"

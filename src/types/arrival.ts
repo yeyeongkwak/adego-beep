@@ -45,6 +45,8 @@ export type VehiclePosition = {
     // stopId is the stop it is at or going to.
     currentStopSequence: number | null
     stopId: string | null
+    // When the bus sent this position (epoch seconds).
+    timestamp: number | null
 }
 
 // Vehicle feed data, saved for a short time.
