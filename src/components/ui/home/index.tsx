@@ -164,9 +164,9 @@ export const StopArrivalsPanel = ({
             </div>
 
             {statusMessage ? (
-                // Top, not centred: the sheet is taller than its peek height,
-                // so a centred message sits below the screen.
-                <div className="px-4 py-8">
+                // The sheet sizes this panel to the snap height, so centring
+                // here centres in the part of the sheet on screen.
+                <div className="flex min-h-0 flex-1 items-center justify-center px-4">
                     <p
                         className={cn(
                             'text-center text-sm',

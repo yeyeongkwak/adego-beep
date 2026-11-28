@@ -174,7 +174,7 @@ export function HomeSheet({
                         {selectedStop ? (
                             <div
                                 ref={scrollRef}
-                                className="relative min-h-0 flex-1 overflow-hidden"
+                                className="relative min-h-0 shrink-0 overflow-hidden"
                                 style={{
                                     height:
                                         typeof activeSnapPoint === 'number'
