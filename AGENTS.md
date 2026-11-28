@@ -1,8 +1,9 @@
 # AGENTS.md
 
-Adelaide bus app. Google Routes finds the route; Adelaide Metro GTFS (Supabase)
-and GTFS-Realtime give the real times. Next.js 16, React 19, TanStack Query,
-Tailwind + shadcn/ui, Yarn 4.
+Adelaide bus app. Our OTP server finds the route (Google Routes if `OTP_URL`
+is unset or OTP fails); Adelaide Metro GTFS (Supabase) and GTFS-Realtime give
+the real times and notices. Next.js 16, React 19, TanStack Query,
+Tailwind + shadcn/ui, Yarn 4. Docs: `docs/v1.1/`.
 
 ## Commands
 
@@ -10,7 +11,7 @@ Tailwind + shadcn/ui, Yarn 4.
 - `npx tsc --noEmit -p .` — type check
 - `yarn lint` / `yarn prettier --check .`
 - `yarn ci:verify` — lint + format + build (same as CI)
-- `yarn gtfs:update` — reload GTFS into Supabase (GitHub Actions runs it daily)
+- `yarn gtfs:update` — reload GTFS into Supabase (GitHub Actions runs it hourly)
 - `yarn db:types` — regenerate `src/types/database.ts` from the remote
   schema (`supabase login` once first)
 
@@ -60,7 +61,10 @@ Tailwind + shadcn/ui, Yarn 4.
   worked out in `realtime.ts`), not by the feed's number.
 - The feed drops stops a bus has passed, and says "early" before a bus starts.
 - Google gives no GTFS trip id. `/api/directions` matches rides by stop name,
-  distance, time and headsign. Expect gaps.
+  distance, time and headsign. Expect gaps. OTP does give trip ids.
+- Service alerts point at routes only; stops, alternatives and daily hours are
+  read from the text (`lib/arrivals/alerts.ts`, see `docs/v1.1/NOTICES.md`).
+  The feed splits each active period into two halves.
 - The app uses the publishable key (`anon` role, 3 s statement timeout) on a
   small Supabase instance. Keep queries indexed and don't fan out too many.
 
@@ -76,8 +80,8 @@ Tailwind + shadcn/ui, Yarn 4.
   Users live in `app_users` (not Supabase Auth). No `proxy.ts`.
 - Favourites: localStorage when signed out; when signed in, our API
   (`/api/favourites`, secret key) reads/writes `favorite_locations` by
-  `app_users.id`. Local favourites move into the account on first sign-in.
-  Recents stay in localStorage.
+  `app_users.id`. Recents work the same way (`/api/recents`,
+  `recent_places`). Local lists aren't moved into the account on sign-in.
 
 ## Git
 

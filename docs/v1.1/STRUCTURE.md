@@ -14,8 +14,10 @@ adego-beep/
 │   ├── types/               # Shared types only (no logic)
 │   └── util/                # Plain helpers (client + server safe)
 ├── sql/migrations/          # Postgres migrations (run by hand)
-├── scripts/                 # GTFS import, etc.
-└── .github/workflows/       # CI + daily GTFS update
+├── scripts/                 # GTFS import, detour trace collector
+├── otp/                     # OTP server config (copied to the VM)
+├── docs/v1.1/               # These docs
+└── .github/workflows/       # CI, GTFS update, OTP graph, traces
 ```
 
 ## App routes (`src/app`)
@@ -38,7 +40,7 @@ adego-beep/
 | --------------------------------------- | ----------------------------------------------- |
 | `/api/stops-nearby`                     | Stops near a lat/lng (GTFS in Supabase)         |
 | `/api/stop-arrival`                     | Timetable + live departures for a stop          |
-| `/api/directions`                       | Google Routes → journeys, matched to GTFS rides |
+| `/api/directions`                       | OTP (or Google) → journeys, GTFS rides, notices |
 | `/api/journeys`, `/api/journeys/[id]`   | Cached / refreshed journey payloads             |
 | `/api/trip-map`                         | Shape + live vehicle for one trip               |
 | `/api/places/*`, `/api/reverse-geocode` | Google Places / geocode (server key)            |
@@ -61,7 +63,8 @@ UI (page/ + ui/)
 - **`hooks`** — `useDirections`, `useStopArrival`, `useFavourites`,
   `useSession`, `useRecent`, geolocation, places search.
 - **`lib`** — must not be imported from client components. Arrivals merge
-  (schedule + realtime) lives in `lib/arrivals/`.
+  (schedule + realtime) lives in `lib/arrivals/`; service notices in
+  `lib/arrivals/alerts.ts`.
 - **`util`** — no React. Examples: `util/route` (free-fare hints, catch
   windows), `util/map/distance`, `util/oauthSession`.
 - **`types`** — grouped by data (`place`, `journey`, `arrival`, `auth`,
@@ -77,6 +80,8 @@ UI (page/ + ui/)
 | Favourites (signed in)        | `favorite_locations` via `/api/favourites`               |
 | Recents                       | `localStorage` only                                      |
 | Session                       | HTTP-only JWT cookie (`app_session`) → `app_users`       |
+| Journey planner               | OTP on the Oracle VM (`OTP_URL`); Google as fallback     |
+| Detour traces                 | Supabase `vehicle_traces` (1 day, written by Actions)    |
 
 Signed-in and signed-out favourites are **separate**; signing in does not
 copy local favourites into the account.
@@ -84,6 +89,9 @@ copy local favourites into the account.
 ## Related docs
 
 - `README.md` — product features and env setup
-- `docs/SCREENS.md` — per-screen features + screenshots
-- `DATA.md` — Google APIs, GTFS static/realtime, daily import Action
+- [SCREENS.md](./SCREENS.md) — per-screen features + screenshots
+- [DATA.md](./DATA.md) — planners, GTFS static/realtime, Actions
+- [OTP.md](./OTP.md) — OTP server and deploy
+- [NOTICES.md](./NOTICES.md) — how service notices are read
+- [CHANGELOG.md](./CHANGELOG.md) — what changed in v1.1
 - `AGENTS.md` — conventions for edits (placement, style, GTFS quirks)

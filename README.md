@@ -1,28 +1,35 @@
 # Adelaide Go Beep
 
-Adelaide public transport app. Google Routes plans the trip; Adelaide Metro
-GTFS (Supabase) and GTFS-Realtime give live times.
+Adelaide public transport app. Our OpenTripPlanner server plans the trip
+(Google Routes as fallback); Adelaide Metro GTFS (Supabase) and GTFS-Realtime
+give live times and service notices.
+
+Docs: **[docs/v1.1](./docs/v1.1/README.md)** · what's new:
+[CHANGELOG](./docs/v1.1/CHANGELOG.md)
 
 ## Features
 
-Screen-by-screen pitch with screenshots: **[docs/SCREENS.md](./docs/SCREENS.md)**.
+Screen-by-screen pitch with screenshots: **[docs/v1.1/SCREENS.md](./docs/v1.1/SCREENS.md)**.
 
 - **Home** — map bounds → nearby stops (code + distance), live GTFS-R
   departures, Where to? search
 - **Route** — A→B, leave now / later, free-bus filter, walk + catch hints,
-  live delay, lasting journey detail + vehicle on the map
+  live delay, lasting journey detail + vehicle on the map, Adelaide Metro
+  notices (closed stops, "use instead", dashed detours)
 - **Favourites** — places vs stops; stop codes in the list; localStorage when
   signed out, account sync after Google sign-in
 - **Recent** — recent places on this device only
 - **Profile** — Google sign-in / sign-out (JWT cookie, not Supabase Auth)
 - **PWA** — installable (`manifest`, theme colour, safe-area tab bar)
 
-Also: [STRUCTURE.md](./STRUCTURE.md) · [DATA.md](./DATA.md) · [AGENTS.md](./AGENTS.md)
+Also: [STRUCTURE](./docs/v1.1/STRUCTURE.md) · [DATA](./docs/v1.1/DATA.md) ·
+[OTP](./docs/v1.1/OTP.md) · [NOTICES](./docs/v1.1/NOTICES.md) ·
+[AGENTS.md](./AGENTS.md)
 
 ## Stack
 
 Next.js 16, React 19, TanStack Query, Tailwind + shadcn/ui, Yarn 4, Supabase
-Postgres, Google Maps / Routes / Places.
+Postgres, OpenTripPlanner 2.9 (Oracle Cloud VM), Google Maps / Routes / Places.
 
 ## Setup
 
@@ -44,6 +51,7 @@ yarn dev                     # http://localhost:3000
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`           | Maps in the browser                        |
 | `NEXT_PUBLIC_GOOGLE_MAPS_ID`                | Map ID                                     |
 | `GOOGLE_MAPS_API_KEY`                       | Places / reverse-geocode / Routes (server) |
+| `OTP_URL`                                   | OTP server; unset → Google Routes only     |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth                               |
 | `SESSION_SECRET`                            | App session JWT                            |
 | `NEXT_PUBLIC_SITE_URL`                      | OAuth redirect origin (prod)               |
@@ -58,11 +66,14 @@ OAuth redirect URI: `{NEXT_PUBLIC_SITE_URL}/api/auth/callback`.
 | `yarn build` / `yarn start` | Production                         |
 | `yarn ci:verify`            | Lint + format check + build        |
 | `yarn gtfs:update`          | Reload static GTFS into Supabase   |
+| `yarn traces:collect`       | Sample buses on detours (Actions)  |
 | `yarn db:types`             | Regenerate `src/types/database.ts` |
 
 GTFS SQL migrations live in `sql/migrations/` and are run by hand in the
-Supabase SQL editor. GitHub Actions runs `yarn gtfs:update` daily.
+Supabase SQL editor. GitHub Actions runs `yarn gtfs:update` hourly (same zip →
+skipped), then rebuilds the OTP graph.
 
-- Screens + screenshots: [docs/SCREENS.md](./docs/SCREENS.md)
-- Folder layout: [STRUCTURE.md](./STRUCTURE.md)
-- Google APIs + GTFS / GitHub Action import: [DATA.md](./DATA.md)
+- Screens + screenshots: [docs/v1.1/SCREENS.md](./docs/v1.1/SCREENS.md)
+- Folder layout: [docs/v1.1/STRUCTURE.md](./docs/v1.1/STRUCTURE.md)
+- Planners + GTFS / GitHub Actions: [docs/v1.1/DATA.md](./docs/v1.1/DATA.md)
+- OTP server: [docs/v1.1/OTP.md](./docs/v1.1/OTP.md)
