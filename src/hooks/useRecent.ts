@@ -1,56 +1,76 @@
 'use client'
 
-// Recently viewed stops. localStorage-only for now (same storage-agnostic shape
-// as useFavourites, so a signed-in DB branch can slot in later untouched).
-//
-// Differs from favourites: entries are recorded automatically when a stop is
-// opened (not toggled), kept newest-first, de-duplicated by identity, and
-// capped so the list stays short. Backed by useSyncExternalStore so all
-// instances share one source of truth.
+// Recently picked places and opened stops, newest first. localStorage when
+// signed out, /api/recents when signed in (same pattern as useFavourites).
 
-import { useCallback, useSyncExternalStore } from 'react'
-import type { Recent } from '@/types/place'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Favourite, Recent } from '@/types/place'
 import { createLocalListStore, placeKey } from '@/util/localStore'
-
-const MAX_RECENTS = 10
+import { MAX_RECENTS } from '@/util/recent'
+import { useSession } from '@/hooks/useSession'
 
 const store = createLocalListStore<Recent>('adego:recent')
+const EMPTY: Recent[] = []
+
+// Put the place first, drop its older entry, and cap the list.
+const bump = (list: Recent[], item: Favourite): Recent[] => {
+    const k = placeKey(item.placeType, item.placeId)
+    return [
+        { ...item, visitedAt: Date.now() },
+        ...list.filter((r) => placeKey(r.placeType, r.placeId) !== k),
+    ].slice(0, MAX_RECENTS)
+}
 
 export function useRecent() {
-    const recents = useSyncExternalStore(
+    const { user, signedIn } = useSession()
+    const queryClient = useQueryClient()
+    const queryKey = useMemo(
+        () => ['recents', user?.userId] as const,
+        [user?.userId]
+    )
+
+    const { data: remote } = useQuery({
+        queryKey,
+        queryFn: async () => {
+            const res = await fetch('/api/recents')
+            if (!res.ok) throw new Error('Failed to fetch recents')
+            return ((await res.json()) as { recents: Recent[] }).recents
+        },
+        enabled: signedIn,
+        staleTime: Infinity,
+    })
+
+    const local = useSyncExternalStore(
         store.subscribe,
         store.getSnapshot,
         store.getServerSnapshot
     )
 
-    // Record a visit: drop any existing entry for the same place, prepend the
-    // fresh one, and cap the list. Call when a stop's arrivals are opened.
-    const record = useCallback((item: Omit<Recent, 'visitedAt'>) => {
-        const k = placeKey(item.placeType, item.placeId)
-        const withoutDupe = store
-            .getSnapshot()
-            .filter((r) => placeKey(r.placeType, r.placeId) !== k)
-        store.write(
-            [{ ...item, visitedAt: Date.now() }, ...withoutDupe].slice(
-                0,
-                MAX_RECENTS
-            )
-        )
-    }, [])
+    const recents = signedIn ? (remote ?? EMPTY) : local
 
-    const remove = useCallback(
-        (placeType: Recent['placeType'], placeId: string) => {
-            const k = placeKey(placeType, placeId)
-            store.write(
-                store
-                    .getSnapshot()
-                    .filter((r) => placeKey(r.placeType, r.placeId) !== k)
+    const record = useCallback(
+        (item: Favourite) => {
+            // Keep only the place fields (a favourite may carry an icon).
+            const { placeType, placeId, label, lat, lng, mode, code } = item
+            const place = { placeType, placeId, label, lat, lng, mode, code }
+            if (!signedIn) {
+                store.write(bump(store.getSnapshot(), place))
+                return
+            }
+            queryClient.setQueryData<Recent[]>(queryKey, (current) =>
+                bump(current ?? EMPTY, place)
             )
+            void fetch('/api/recents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(place),
+            }).then((res) => {
+                if (!res.ok) void queryClient.invalidateQueries({ queryKey })
+            })
         },
-        []
+        [signedIn, queryClient, queryKey]
     )
 
-    const clear = useCallback(() => store.write([]), [])
-
-    return { recents, record, remove, clear }
+    return { recents, record }
 }

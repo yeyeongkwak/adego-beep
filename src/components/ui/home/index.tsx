@@ -8,6 +8,69 @@ import { FavouriteStar } from '@/components/ui/favourite-star'
 import { formatDistance } from '@/util/map/distance'
 import { formatArrival } from '@/util/arrival'
 import { cn } from '@/lib/utils'
+import { Popover } from 'radix-ui'
+import { useRef, useState, type PointerEvent } from 'react'
+
+// Shows the full text in a bubble when it's cut off: hover with a mouse,
+// tap on touch.
+const TruncatedText = ({
+    text,
+    className,
+}: {
+    text: string
+    className?: string
+}) => {
+    const [open, setOpen] = useState(false)
+    const anchor = useRef<HTMLParagraphElement>(null)
+    const mouse = useRef(false)
+    const show = (el: HTMLElement) => setOpen(el.scrollWidth > el.clientWidth)
+    const hover = (on: boolean) => (e: PointerEvent<HTMLElement>) => {
+        if (e.pointerType !== 'mouse') return
+        if (on) show(e.currentTarget)
+        else setOpen(false)
+    }
+
+    return (
+        <Popover.Root open={open} onOpenChange={setOpen}>
+            <Popover.Anchor asChild>
+                <p
+                    ref={anchor}
+                    className={cn('truncate', className)}
+                    onPointerEnter={hover(true)}
+                    onPointerLeave={hover(false)}
+                    onPointerDown={(e) => {
+                        mouse.current = e.pointerType === 'mouse'
+                    }}
+                    onClick={(e) => {
+                        if (mouse.current) return
+                        if (open) setOpen(false)
+                        else show(e.currentTarget)
+                    }}
+                >
+                    {text}
+                </p>
+            </Popover.Anchor>
+            <Popover.Portal>
+                <Popover.Content
+                    side="bottom"
+                    align="start"
+                    sideOffset={6}
+                    collisionPadding={12}
+                    onOpenAutoFocus={(e) => e.preventDefault()}
+                    // A tap on the name toggles it; don't also count it as outside.
+                    onInteractOutside={(e) => {
+                        if (anchor.current?.contains(e.target as Node))
+                            e.preventDefault()
+                    }}
+                    className="z-50 max-w-[calc(100vw-24px)] rounded-lg bg-zinc-900 px-3 py-2 text-sm font-semibold text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900"
+                >
+                    {text}
+                    <Popover.Arrow className="fill-zinc-900 dark:fill-zinc-100" />
+                </Popover.Content>
+            </Popover.Portal>
+        </Popover.Root>
+    )
+}
 
 const StopRow = ({
     stop,
@@ -139,7 +202,13 @@ export const StopArrivalsPanel = ({
                     />
                 </div>
                 <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-bold">{stop.name}</p>
+                    {/* Keyed by stop so a new stop starts with the bubble closed;
+                        map taps don't count as outside clicks. */}
+                    <TruncatedText
+                        key={stop.id}
+                        text={stop.name}
+                        className="text-base font-bold"
+                    />
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         {stop.code ? `Stop ${stop.code}` : 'Stop'}
                         {stop.distanceM != null
@@ -164,9 +233,9 @@ export const StopArrivalsPanel = ({
             </div>
 
             {statusMessage ? (
-                // Top, not centred: the sheet is taller than its peek height,
-                // so a centred message sits below the screen.
-                <div className="px-4 py-8">
+                // The sheet sizes this panel to the snap height, so centring
+                // here centres in the part of the sheet on screen.
+                <div className="flex min-h-0 flex-1 items-center justify-center px-4">
                     <p
                         className={cn(
                             'text-center text-sm',

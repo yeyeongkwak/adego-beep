@@ -2,6 +2,7 @@ import { requireSession } from '@/util/oauthSession'
 import { NextResponse } from 'next/server'
 import { createSecretClient } from '@/lib/supabase'
 import type { Favourite, FavouriteType, StopMode } from '@/types/place'
+import { isFavouriteIcon } from '@/util/favouriteIcon'
 
 function isFavouriteType(v: unknown): v is FavouriteType {
     return v === 'stop' || v === 'place'
@@ -13,7 +14,9 @@ export async function GET() {
 
     const { data, error } = await createSecretClient()
         .from('favorite_locations')
-        .select('place_type, place_id, label, latitude, longitude, mode, code')
+        .select(
+            'place_type, place_id, label, latitude, longitude, mode, code, icon'
+        )
         .eq('user_id', session.userId)
         .order('created_at', { ascending: false })
 
@@ -29,6 +32,7 @@ export async function GET() {
         lng: item.longitude,
         ...(item.mode ? { mode: item.mode as StopMode } : {}),
         ...(item.code ? { code: item.code } : {}),
+        ...(isFavouriteIcon(item.icon) ? { icon: item.icon } : {}),
     }))
 
     return NextResponse.json({ favourites })
@@ -69,6 +73,7 @@ export async function POST(request: Request) {
                     body.placeType === 'stop' && typeof body.code === 'string'
                         ? body.code
                         : null,
+                icon: isFavouriteIcon(body.icon) ? body.icon : null,
             },
             {
                 onConflict: 'user_id,place_type,place_id',
@@ -103,6 +108,38 @@ export async function DELETE(request: Request) {
         .eq('user_id', session.userId)
         .eq('place_id', placeId)
         .eq('place_type', placeType)
+
+    if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ ok: true })
+}
+
+// Change a favourite's icon. icon: null goes back to the default.
+export async function PATCH(request: Request) {
+    const { session, error: authError } = await requireSession()
+    if (authError) return authError
+
+    const body = await request.json()
+    if (
+        !isFavouriteType(body.placeType) ||
+        typeof body.placeId !== 'string' ||
+        !body.placeId ||
+        (body.icon !== null && !isFavouriteIcon(body.icon))
+    ) {
+        return NextResponse.json(
+            { error: 'Missing or invalid fields' },
+            { status: 400 }
+        )
+    }
+
+    const { error } = await createSecretClient()
+        .from('favorite_locations')
+        .update({ icon: body.icon })
+        .eq('user_id', session.userId)
+        .eq('place_id', body.placeId)
+        .eq('place_type', body.placeType)
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })

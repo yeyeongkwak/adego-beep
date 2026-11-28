@@ -67,6 +67,7 @@ export type Database = {
                     address: string | null
                     code: string | null
                     created_at: string | null
+                    icon: string | null
                     id: string
                     is_home: boolean | null
                     label: string
@@ -81,6 +82,7 @@ export type Database = {
                     address?: string | null
                     code?: string | null
                     created_at?: string | null
+                    icon?: string | null
                     id?: string
                     is_home?: boolean | null
                     label: string
@@ -95,6 +97,7 @@ export type Database = {
                     address?: string | null
                     code?: string | null
                     created_at?: string | null
+                    icon?: string | null
                     id?: string
                     is_home?: boolean | null
                     label?: string
@@ -579,6 +582,50 @@ export type Database = {
                     id?: string
                 }
                 Relationships: []
+            }
+            recent_places: {
+                Row: {
+                    code: string | null
+                    label: string
+                    latitude: number
+                    longitude: number
+                    mode: string | null
+                    place_id: string
+                    place_type: string
+                    user_id: string
+                    visited_at: string
+                }
+                Insert: {
+                    code?: string | null
+                    label: string
+                    latitude: number
+                    longitude: number
+                    mode?: string | null
+                    place_id: string
+                    place_type: string
+                    user_id: string
+                    visited_at?: string
+                }
+                Update: {
+                    code?: string | null
+                    label?: string
+                    latitude?: number
+                    longitude?: number
+                    mode?: string | null
+                    place_id?: string
+                    place_type?: string
+                    user_id?: string
+                    visited_at?: string
+                }
+                Relationships: [
+                    {
+                        foreignKeyName: 'recent_places_user_id_fkey'
+                        columns: ['user_id']
+                        isOneToOne: false
+                        referencedRelation: 'app_users'
+                        referencedColumns: ['id']
+                    },
+                ]
             }
             rt_arrivals: {
                 Row: {

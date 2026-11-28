@@ -21,6 +21,8 @@ export type NearbyStop = {
 }
 
 export type FavouriteType = 'stop' | 'place'
+export type FavouriteIcon =
+    'home' | 'school' | 'work' | 'gym' | 'shop' | 'heart'
 export type Favourite = {
     placeType: FavouriteType
     placeId: string
@@ -29,6 +31,7 @@ export type Favourite = {
     lng: number
     mode?: StopMode // present for stops, used for the list icon
     code?: string | null // GTFS stop_code for placeType=stop
+    icon?: FavouriteIcon | null // picked by the user; null = default
 }
 
 export type Recent = Favourite & {

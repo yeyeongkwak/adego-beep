@@ -9,9 +9,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { LatLng } from '@/types/geo'
 
-const OPTIONS: PositionOptions = {
-    enableHighAccuracy: false,
+// High accuracy uses GPS. Without it iOS returns a Wi-Fi/cell guess that can
+// be a block or more off.
+export const GEO_OPTIONS: PositionOptions = {
+    enableHighAccuracy: true,
     timeout: 15000,
+    maximumAge: 10_000,
 }
 
 export function useGeolocation() {
@@ -40,7 +43,7 @@ export function useGeolocation() {
                     setDenied(err.code === err.PERMISSION_DENIED)
                     resolve(null)
                 },
-                OPTIONS
+                GEO_OPTIONS
             )
         })
     }, [])
@@ -62,7 +65,7 @@ export function useWatchedLocation() {
                     lng: pos.coords.longitude,
                 }),
             () => {},
-            OPTIONS
+            GEO_OPTIONS
         )
         return () => navigator.geolocation.clearWatch(id)
     }, [])

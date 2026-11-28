@@ -25,6 +25,7 @@ import { fetchLocationLabel } from '@/util/reverseGeocode'
 import { cn } from '@/lib/utils'
 import type { Favourite, PickedLocation } from '@/types/place'
 import { STOP_MODE_STYLE } from '@/util/stopMode'
+import { FAVOURITE_ICONS } from '@/util/favouriteIcon'
 
 function Row({
     icon,
@@ -86,7 +87,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 const FavouriteIcon = ({ favourite }: { favourite: Favourite }) => {
     const style = favourite.mode ? STOP_MODE_STYLE[favourite.mode] : null
-    const Icon = style?.icon ?? MapPin
+    const Icon =
+        style?.icon ??
+        (favourite.icon ? FAVOURITE_ICONS[favourite.icon].Icon : MapPin)
     return <Icon className={cn('size-[18px]', style?.iconClass)} />
 }
 
@@ -102,7 +105,7 @@ export function LocationSearchSheet({
     onSelect: (location: PickedLocation) => void
 }) {
     const { favourites, remove, isFavourite, toggle } = useFavourites()
-    const { recents } = useRecent()
+    const { recents, record } = useRecent()
     const { request: requestLocation } = useGeolocation()
     const [query, setQuery] = useState('')
     const [locating, setLocating] = useState(false)
@@ -143,7 +146,9 @@ export function LocationSearchSheet({
     // Turn a chosen prediction into coordinates before handing it back.
     const pickPrediction = async (placeId: string) => {
         const place = await resolvePlace(placeId)
-        if (place) pick(place)
+        if (!place) return
+        record(toPlaceFavourite(place))
+        pick(place)
     }
 
     const isStarred = (placeId: string) => {
@@ -263,7 +268,10 @@ export function LocationSearchSheet({
                                             : undefined
                                     }
                                     title={f.label}
-                                    onClick={() => pick(f)}
+                                    onClick={() => {
+                                        record(f)
+                                        pick(f)
+                                    }}
                                     trailing={
                                         <FavouriteStarButton
                                             favourited
@@ -285,7 +293,10 @@ export function LocationSearchSheet({
                                     key={`${r.placeType}:${r.placeId}`}
                                     icon={<Clock className="size-[18px]" />}
                                     title={r.label}
-                                    onClick={() => pick(r)}
+                                    onClick={() => {
+                                        record(r)
+                                        pick(r)
+                                    }}
                                 />
                             ))}
                         </Section>

@@ -7,11 +7,13 @@ import {
     ChevronRight,
     Clock,
     Footprints,
+    ListFilter,
     LocateFixed,
     MapPin,
     Megaphone,
     RefreshCw,
 } from 'lucide-react'
+import { Popover } from 'radix-ui'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { BusLeg, Journey, TripTime } from '@/types/journey'
@@ -25,6 +27,41 @@ import { VehicleMapSheet } from './vehicle-map-sheet'
 import { fetchLocationLabel } from '@/util/reverseGeocode'
 import { catchHint, delayStatus, isFreeJourney } from '@/util/route'
 import { ModeIcon, LiveDot } from './common'
+
+type RouteFilter = 'free' | 'walk' | 'transfers'
+
+const FILTERS: { key: RouteFilter; label: string }[] = [
+    { key: 'free', label: 'Free 🚌 only' },
+    { key: 'walk', label: 'Least walking' },
+    { key: 'transfers', label: 'Fewest transfers' },
+]
+
+const walkMinutes = (journey: Journey) =>
+    journey.legs.reduce(
+        (sum, leg) => sum + (leg.type === 'walk' ? leg.minutes : 0),
+        0
+    )
+
+const transfers = (journey: Journey) =>
+    Math.max(0, journey.legs.filter((leg) => leg.type === 'bus').length - 1)
+
+// Free drops routes; walking and transfers sort the rest (transfers first
+// when both are on), so the list never goes empty because of them.
+function applyFilters(journeys: Journey[], filters: Set<RouteFilter>) {
+    const kept = filters.has('free') ? journeys.filter(isFreeJourney) : journeys
+    const keys = [
+        filters.has('transfers') && transfers,
+        filters.has('walk') && walkMinutes,
+    ].filter((key) => !!key)
+    if (keys.length === 0) return kept
+    return [...kept].sort((a, b) => {
+        for (const key of keys) {
+            const diff = key(a) - key(b)
+            if (diff) return diff
+        }
+        return 0
+    })
+}
 
 const JourneyCard = ({
     journey,
@@ -302,6 +339,16 @@ function readEndpoint(
         : null
 }
 
+// ?depart=<ms> or ?arrive=<ms>
+function readTripTime(params: URLSearchParams): TripTime {
+    for (const mode of ['depart', 'arrive'] as const) {
+        const at = Number(params.get(mode))
+        if (params.has(mode) && Number.isFinite(at))
+            return { mode, at: new Date(at) }
+    }
+    return null
+}
+
 export function RouteScreen() {
     const searchParams = useSearchParams()
 
@@ -318,9 +365,21 @@ export function RouteScreen() {
     // The origin geolocation filled in. It stays out of the URL: a reload
     // should re-locate, and a shared link should start from the viewer.
     const gpsOrigin = useRef<PickedLocation>(null)
+    const [when, setWhen] = useState<TripTime>(() => readTripTime(searchParams))
+    const [filters, setFilters] = useState<Set<RouteFilter>>(
+        () =>
+            new Set(
+                (searchParams.get('filters') ?? '')
+                    .split(',')
+                    .filter((f): f is RouteFilter =>
+                        FILTERS.some(({ key }) => key === f)
+                    )
+            )
+    )
 
-    // Mirror the endpoints back into the URL so a reload or shared link opens
-    // what's on screen. replaceState (Next-aware) avoids a history entry per pick.
+    // Mirror the endpoints, time and filters back into the URL so a reload,
+    // a shared link or coming back from a route opens what's on screen.
+    // replaceState (Next-aware) avoids a history entry per pick.
     useEffect(() => {
         const params = new URLSearchParams()
         const put = (prefix: string, loc: PickedLocation) => {
@@ -331,20 +390,28 @@ export function RouteScreen() {
         }
         if (origin !== gpsOrigin.current) put('origin', origin)
         put('dest', destination)
+        if (when) {
+            params.set(when.mode, String(when.at.getTime()))
+        }
+        if (filters.size) params.set('filters', [...filters].join(','))
         const qs = params.toString()
         window.history.replaceState(
             null,
             '',
             qs ? `?${qs}` : window.location.pathname
         )
-    }, [origin, destination])
+    }, [origin, destination, when, filters])
 
-    const [when, setWhen] = useState<TripTime>(null)
     const [timeSheetOpen, setTimeSheetOpen] = useState(false)
     const [picking, setPicking] = useState<'origin' | 'destination' | null>(
         null
     )
-    const [freeOnly, setFreeOnly] = useState(false)
+    const toggleFilter = (key: RouteFilter) =>
+        setFilters((prev) => {
+            const next = new Set(prev)
+            if (!next.delete(key)) next.add(key)
+            return next
+        })
 
     const { request: requestLocation, location: userLocation } =
         useGeolocation()
@@ -374,7 +441,7 @@ export function RouteScreen() {
         destination,
         when
     )
-    const shown = freeOnly ? journeys.filter(isFreeJourney) : journeys
+    const shown = applyFilters(journeys, filters)
 
     const swap = () => {
         setOrigin(destination)
@@ -470,19 +537,51 @@ export function RouteScreen() {
                             </span>
                         )}
                     </button>
-                    <button
-                        type="button"
-                        aria-pressed={freeOnly}
-                        onClick={() => setFreeOnly((v) => !v)}
-                        className={cn(
-                            'flex h-9 shrink-0 items-center rounded-lg px-3.5 text-sm font-semibold whitespace-nowrap transition-colors active:scale-[0.97]',
-                            freeOnly
-                                ? 'bg-accent text-primary'
-                                : 'bg-white/10 text-white hover:bg-white/20'
-                        )}
-                    >
-                        Free 🚌 only
-                    </button>
+                    <Popover.Root>
+                        <Popover.Trigger
+                            aria-label={
+                                filters.size
+                                    ? `Route filters (${filters.size} on)`
+                                    : 'Route filters'
+                            }
+                            className={cn(
+                                'flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-semibold transition-colors active:scale-[0.97]',
+                                filters.size
+                                    ? 'bg-accent text-primary'
+                                    : 'bg-white/10 text-white hover:bg-white/20'
+                            )}
+                        >
+                            <ListFilter className="size-4 shrink-0" />
+                            {filters.size > 0 && (
+                                <span className="tabular-nums">
+                                    {filters.size}
+                                </span>
+                            )}
+                        </Popover.Trigger>
+                        <Popover.Portal>
+                            <Popover.Content
+                                align="start"
+                                sideOffset={6}
+                                collisionPadding={12}
+                                className="z-50 w-56 rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-black/5 dark:bg-zinc-900 dark:ring-white/10"
+                            >
+                                {FILTERS.map(({ key, label }) => (
+                                    <label
+                                        key={key}
+                                        className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={filters.has(key)}
+                                            onChange={() => toggleFilter(key)}
+                                            className="size-4 accent-primary dark:accent-accent"
+                                        />
+                                        {label}
+                                    </label>
+                                ))}
+                            </Popover.Content>
+                        </Popover.Portal>
+                    </Popover.Root>
                     <Button
                         variant="ghost"
                         size="icon"
@@ -543,7 +642,7 @@ export function RouteScreen() {
                         {error}
                     </p>
                 </div>
-            ) : freeOnly && shown.length === 0 ? (
+            ) : filters.has('free') && shown.length === 0 ? (
                 <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
                     <MapPin className="size-8 text-zinc-300 dark:text-zinc-600" />
                     <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">

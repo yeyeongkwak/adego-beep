@@ -60,10 +60,14 @@ export async function GET(request: NextRequest) {
     }
 
     const db = createPublicClient()
+    // Live polls only need the bus, not the stops and shape again.
+    const vehicleOnly = request.nextUrl.searchParams.get('only') === 'vehicle'
 
     const [stops, shape, vehicle] = await Promise.all([
-        getTripStops(db, tripId).catch(() => [] as RouteStop[]),
-        getTripShape(db, tripId).catch(() => [] as LatLng[]),
+        vehicleOnly
+            ? []
+            : getTripStops(db, tripId).catch(() => [] as RouteStop[]),
+        vehicleOnly ? [] : getTripShape(db, tripId).catch(() => [] as LatLng[]),
         getBlockTripIds(db, tripId)
             .then((tripIds) => findVehicleForTrips(tripIds))
             .catch(() => null),
@@ -75,6 +79,7 @@ export async function GET(request: NextRequest) {
               lng: vehicle.lng,
               tripId: vehicle.tripId,
               currentStopSequence: vehicle.currentStopSequence,
+              timestamp: vehicle.timestamp,
           }
         : null
 

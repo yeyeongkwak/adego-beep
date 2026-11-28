@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { HomeMap } from '@/components/page/home/home-map'
 import {
@@ -8,6 +8,8 @@ import {
     PREVIEW_SNAP_POINT,
 } from '@/components/page/home/home-sheet'
 import { useNearbyStops } from '@/hooks/useNearbyStops'
+import { useRecent } from '@/hooks/useRecent'
+import { GEO_OPTIONS } from '@/hooks/useGeolocation'
 import type { MapBounds } from '@/types/geo'
 import type { Stop } from '@/types/place'
 import { boundsAround, distanceMeters } from '@/util/map/distance'
@@ -37,6 +39,7 @@ export function HomeScreen() {
         useNearbyStops(searchBounds)
 
     const [selectedStop, setSelectedStop] = useState<Stop | null>(null)
+    const { record } = useRecent()
 
     const handleSelectStop = (stop: Stop | null) => {
         if (!stop) {
@@ -56,10 +59,16 @@ export function HomeScreen() {
                       })
                   )
                 : undefined)
-        setSelectedStop({
-            ...stop,
-            code: stop.code ?? nearby?.code ?? null,
-            distanceM,
+        const code = stop.code ?? nearby?.code ?? null
+        setSelectedStop({ ...stop, code, distanceM })
+        record({
+            placeType: 'stop',
+            placeId: stop.id,
+            label: stop.name,
+            lat: stop.lat,
+            lng: stop.lng,
+            mode: stop.mode,
+            code,
         })
         setSnapPoint((current) =>
             current === 0 ? PREVIEW_SNAP_POINT : current
@@ -73,6 +82,9 @@ export function HomeScreen() {
     const [bannerHost, setBannerHost] = useState<HTMLElement | null>(null)
     const [searchOpen, setSearchOpen] = useState(false)
 
+    // The map only jumps to the first fix; later (more exact) ones just move
+    // the blue dot.
+    const located = useRef(false)
     const applyPosition = (pos: GeolocationPosition) => {
         setLocationRetrying(false)
         setLocationDenied(false)
@@ -82,6 +94,8 @@ export function HomeScreen() {
             lng: pos.coords.longitude,
         }
         setUserLocation(coords)
+        if (located.current) return
+        located.current = true
         setCenter(coords)
         setSearchBounds(seedBounds(coords, true))
     }
@@ -113,12 +127,13 @@ export function HomeScreen() {
         navigator.geolocation.getCurrentPosition(
             applyPosition,
             (err) => applyPositionError(err, true),
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
+            GEO_OPTIONS
         )
     }
 
-    // Ask once on mount; setState only in geolocation callbacks (or a
-    // microtask if the API is missing) so we don't trip set-state-in-effect.
+    // Watch while mounted so the dot follows you and sharpens as GPS locks
+    // on. setState only in geolocation callbacks (or a microtask if the API
+    // is missing) so we don't trip set-state-in-effect.
     useEffect(() => {
         if (!('geolocation' in navigator)) {
             queueMicrotask(() => {
@@ -127,11 +142,12 @@ export function HomeScreen() {
             })
             return
         }
-        navigator.geolocation.getCurrentPosition(
+        const id = navigator.geolocation.watchPosition(
             applyPosition,
             (err) => applyPositionError(err, false),
-            { enableHighAccuracy: false, timeout: 15000, maximumAge: 0 }
+            GEO_OPTIONS
         )
+        return () => navigator.geolocation.clearWatch(id)
     }, [])
 
     // Portal above the vaul sheet (body z-50) — otherwise the full-height
